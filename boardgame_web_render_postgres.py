@@ -175,6 +175,20 @@ def copy_upload_to_library(upload: Optional[UploadFile], target_dir: Path, base_
     return str(target)
 
 
+
+
+def parse_optional_float(text: str) -> Optional[float]:
+    text = (text or "").strip()
+    if not text:
+        return None
+    return float(text)
+
+
+def preserve_upload_or_existing(upload: Optional[UploadFile], target_dir: Path, base_name: str, existing_path: str) -> str:
+    if upload is None or not upload.filename:
+        return existing_path or ""
+    return copy_upload_to_library(upload, target_dir, base_name)
+
 def web_image_path(db_path: str) -> str:
     if not db_path:
         return ""
@@ -452,9 +466,9 @@ def games_page(request: Request, notice: str = ""):
     items = []
     for game in rows:
         image_url = web_image_path(game["image_path"])
-        items.append(
-            f'''<div class="item"><img class="thumb" src="{escape(image_url)}" {'style="display:none"' if not image_url else ''}><div><h3>{escape(game['name'])}</h3><div class="meta">類型：{escape(game['category'])}<br>BGG：{game['bgg_score'] if game['bgg_score'] is not None else '未填寫'}<br>玩家評分：{game['user_rating'] if game['user_rating'] is not None else '未填寫'}<br>遊玩次數：{game['play_count']}<br>最後遊玩：{escape(game['last_play_date'] or '尚無紀錄')}</div></div><div class="spacer"></div><form method="post" action="/games/{game['id']}/delete" onsubmit="return confirm('確定要刪除這款桌遊嗎？');"><button class="danger" type="submit">刪除</button></form></div>'''
-        )
+        hide_attr = 'style="display:none"' if not image_url else ''
+        item_html = f'''<div class="item"><img class="thumb" src="{escape(image_url)}" {hide_attr}><div><h3>{escape(game['name'])}</h3><div class="meta">類型：{escape(game['category'])}<br>BGG：{game['bgg_score'] if game['bgg_score'] is not None else '未填寫'}<br>玩家評分：{game['user_rating'] if game['user_rating'] is not None else '未填寫'}<br>遊玩次數：{game['play_count']}<br>最後遊玩：{escape(game['last_play_date'] or '尚無紀錄')}</div><details style="margin-top:10px"><summary class="small" style="cursor:pointer">✏️ 編輯桌遊</summary><form class="form-grid two" method="post" action="/games/{game['id']}/edit" enctype="multipart/form-data" style="margin-top:10px"><div><label>桌遊名稱</label><input name="name" value="{escape(game['name'])}" required></div><div><label>桌遊類型</label><input name="category" value="{escape(game['category'])}" required></div><div><label>BGG 分數</label><input name="bgg_score" inputmode="decimal" value="{game['bgg_score'] if game['bgg_score'] is not None else ''}"></div><div><label>玩家自評分</label><input name="user_rating" inputmode="decimal" value="{game['user_rating'] if game['user_rating'] is not None else ''}"></div><div style="grid-column:1/-1"><label>更換圖片（不選則保留原圖）</label><input type="file" name="image"></div><div style="grid-column:1/-1" class="btn-row"><button type="submit">儲存修改</button></div></form></details></div><div class="spacer"></div><form method="post" action="/games/{game['id']}/delete" onsubmit="return confirm('確定要刪除這款桌遊嗎？');"><button class="danger" type="submit">刪除</button></form></div>'''
+        items.append(item_html)
     body = f"""
     <div class="card"><div class="card-title">新增桌遊</div>
       <form class="form-grid two" method="post" action="/games" enctype="multipart/form-data">
@@ -466,7 +480,7 @@ def games_page(request: Request, notice: str = ""):
         <div style="grid-column:1/-1" class="btn-row"><button type="submit">儲存桌遊</button></div>
       </form>
     </div>
-    <div class="card"><div class="card-title">桌遊列表</div><div class="list">{''.join(items) or '<div class="empty">目前尚無桌遊</div>'}</div></div>
+    <div class="card"><div class="card-title">桌遊列表（可展開編輯）</div><div class="list">{''.join(items) or '<div class="empty">目前尚無桌遊</div>'}</div></div>
     """
     return page_template("桌遊", body, active="games", notice=notice)
 
@@ -487,6 +501,39 @@ async def add_game(name: str = Form(...), category: str = Form(...), bgg_score: 
         if unique_error(exc):
             return redirect("/games?notice=桌遊名稱已存在")
         return redirect(f"/games?notice=新增失敗：{str(exc)[:120]}")
+    finally:
+        conn.close()
+
+
+@app.post("/games/{game_id}/edit")
+async def edit_game(game_id: int, name: str = Form(...), category: str = Form(...), bgg_score: str = Form(""), user_rating: str = Form(""), image: UploadFile | None = File(None)):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(q("SELECT name, image_path FROM games WHERE id = %s"), (game_id,))
+        old = cur.fetchone()
+        if not old:
+            conn.close()
+            return redirect("/games?notice=找不到這款桌遊")
+        old_name = old["name"]
+        existing_image = old["image_path"] or ""
+        new_name = name.strip()
+        new_category = category.strip()
+        image_path = preserve_upload_or_existing(image, GAME_IMAGE_DIR, new_name, existing_image)
+        bgg_value = parse_optional_float(bgg_score)
+        rating_value = parse_optional_float(user_rating)
+        cur.execute(q("UPDATE games SET name = %s, category = %s, image_path = %s, bgg_score = %s, user_rating = %s WHERE id = %s"), (new_name, new_category, image_path, bgg_value, rating_value, game_id))
+        if old_name != new_name:
+            cur.execute(q("UPDATE play_records SET game_name = %s WHERE game_name = %s"), (new_name, old_name))
+        cur.execute(q("UPDATE play_records SET game_type = %s WHERE game_id = %s OR game_name = %s"), (new_category, game_id, new_name))
+        conn.commit()
+        sync_game_stats()
+        return redirect("/games?notice=桌遊已更新")
+    except Exception as exc:
+        conn.rollback()
+        if unique_error(exc):
+            return redirect("/games?notice=桌遊名稱已存在")
+        return redirect(f"/games?notice=更新失敗：{str(exc)[:120]}")
     finally:
         conn.close()
 
@@ -529,10 +576,10 @@ def members_page(request: Request, notice: str = ""):
                     seen.add(row["game_name"])
         rate = wins / games_played * 100 if games_played else 0
         image_url = web_image_path(member["image_path"])
+        hide_attr = 'style="display:none"' if not image_url else ''
         best_line = f"<div class='pill'>🔥 最強類型：{escape(best_type)}（{best_rate}）</div>" if best_type else ""
-        cards.append(
-            f'''<div class="item"><img class="thumb circle" src="{escape(image_url)}" {'style="display:none"' if not image_url else ''}><div><h3>{escape(member['name'])}</h3><div class="meta">擅長：{escape(member['favorite_types'] or '未填寫')}<br>總場數：{games_played}｜勝場：{wins}｜勝率：{rate:.1f}%<br>近期遊玩：{escape('、'.join(recent_games) if recent_games else '尚無紀錄')}</div>{best_line}</div><div class="spacer"></div><form method="post" action="/members/{member['id']}/delete" onsubmit="return confirm('確定要刪除這位成員嗎？');"><button class="danger" type="submit">刪除</button></form></div>'''
-        )
+        card_html = f'''<div class="item"><img class="thumb circle" src="{escape(image_url)}" {hide_attr}><div><h3>{escape(member['name'])}</h3><div class="meta">擅長：{escape(member['favorite_types'] or '未填寫')}<br>總場數：{games_played}｜勝場：{wins}｜勝率：{rate:.1f}%<br>近期遊玩：{escape('、'.join(recent_games) if recent_games else '尚無紀錄')}</div>{best_line}<details style="margin-top:10px"><summary class="small" style="cursor:pointer">✏️ 編輯成員</summary><form class="form-grid two" method="post" action="/members/{member['id']}/edit" enctype="multipart/form-data" style="margin-top:10px"><div><label>成員姓名</label><input name="name" value="{escape(member['name'])}" required></div><div><label>擅長桌遊類型</label><input name="favorite_types" value="{escape(member['favorite_types'] or '')}"></div><div style="grid-column:1/-1"><label>更換照片（不選則保留原圖）</label><input type="file" name="image"></div><div style="grid-column:1/-1" class="btn-row"><button type="submit">儲存修改</button></div></form></details></div><div class="spacer"></div><form method="post" action="/members/{member['id']}/delete" onsubmit="return confirm('確定要刪除這位成員嗎？');"><button class="danger" type="submit">刪除</button></form></div>'''
+        cards.append(card_html)
     conn.close()
 
     body = f"""
@@ -544,7 +591,7 @@ def members_page(request: Request, notice: str = ""):
         <div style="grid-column:1/-1" class="btn-row"><button type="submit">儲存成員</button></div>
       </form>
     </div>
-    <div class="card"><div class="card-title">成員列表</div><div class="list">{''.join(cards) or '<div class="empty">目前尚無成員</div>'}</div></div>
+    <div class="card"><div class="card-title">成員列表（可展開編輯）</div><div class="list">{''.join(cards) or '<div class="empty">目前尚無成員</div>'}</div></div>
     """
     return page_template("成員", body, active="members", notice=notice)
 
@@ -563,6 +610,41 @@ async def add_member(name: str = Form(...), favorite_types: str = Form(""), imag
         if unique_error(exc):
             return redirect("/members?notice=成員姓名已存在")
         return redirect(f"/members?notice=新增失敗：{str(exc)[:120]}")
+    finally:
+        conn.close()
+
+
+@app.post("/members/{member_id}/edit")
+async def edit_member(member_id: int, name: str = Form(...), favorite_types: str = Form(""), image: UploadFile | None = File(None)):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(q("SELECT name, image_path FROM members WHERE id = %s"), (member_id,))
+        old = cur.fetchone()
+        if not old:
+            conn.close()
+            return redirect("/members?notice=找不到這位成員")
+        old_name = old["name"]
+        existing_image = old["image_path"] or ""
+        new_name = name.strip()
+        image_path = preserve_upload_or_existing(image, MEMBER_IMAGE_DIR, new_name, existing_image)
+        cur.execute(q("UPDATE members SET name = %s, favorite_types = %s, image_path = %s WHERE id = %s"), (new_name, favorite_types.strip(), image_path, member_id))
+        if old_name != new_name:
+            cur.execute("SELECT id, players, winners FROM play_records")
+            for row in cur.fetchall():
+                old_players = parse_csv_names(row["players"])
+                old_winners = parse_csv_names(row["winners"])
+                new_players = [new_name if p == old_name else p for p in old_players]
+                new_winners = [new_name if w == old_name else w for w in old_winners]
+                if old_players != new_players or old_winners != new_winners:
+                    cur.execute(q("UPDATE play_records SET players = %s, winners = %s WHERE id = %s"), (", ".join(new_players), ", ".join(new_winners), row["id"]))
+        conn.commit()
+        return redirect("/members?notice=成員已更新")
+    except Exception as exc:
+        conn.rollback()
+        if unique_error(exc):
+            return redirect("/members?notice=成員姓名已存在")
+        return redirect(f"/members?notice=更新失敗：{str(exc)[:120]}")
     finally:
         conn.close()
 
