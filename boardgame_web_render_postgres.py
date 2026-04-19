@@ -738,3 +738,74 @@ def startup_event():
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
     uvicorn.run("boardgame_web_render_postgres:app", host="0.0.0.0", port=port, reload=False)
+@app.post("/edit_game/{game_id}")
+async def edit_game(
+    game_id: int,
+    name: str = Form(...),
+    category: str = Form(...),
+    image: UploadFile = File(None)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    image_path = None
+
+    if image:
+        file_path = f"{DATA_DIR}/game_{game_id}.png"
+        with open(file_path, "wb") as f:
+            f.write(await image.read())
+        image_path = file_path
+
+    if image_path:
+        cur.execute("""
+            UPDATE games
+            SET name=%s, category=%s, image_path=%s
+            WHERE id=%s
+        """, (name, category, image_path, game_id))
+    else:
+        cur.execute("""
+            UPDATE games
+            SET name=%s, category=%s
+            WHERE id=%s
+        """, (name, category, game_id))
+
+    conn.commit()
+    return RedirectResponse("/", status_code=303)
+    @app.post("/edit_member/{member_id}")
+async def edit_member(
+    member_id: int,
+    name: str = Form(...),
+    image: UploadFile = File(None)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    image_path = None
+
+    if image:
+        file_path = f"{DATA_DIR}/member_{member_id}.png"
+        with open(file_path, "wb") as f:
+            f.write(await image.read())
+        image_path = file_path
+
+    if image_path:
+        cur.execute("""
+            UPDATE members
+            SET name=%s, image_path=%s
+            WHERE id=%s
+        """, (name, image_path, member_id))
+    else:
+        cur.execute("""
+            UPDATE members
+            SET name=%s
+            WHERE id=%s
+        """, (name, member_id))
+
+    conn.commit()
+    return RedirectResponse("/", status_code=303)
+    <form action="/edit_game/{{game.id}}" method="post" enctype="multipart/form-data">
+    <input name="name" value="{{game.name}}">
+    <input name="category" value="{{game.category}}">
+    <input type="file" name="image">
+    <button type="submit">✏️ 編輯</button>
+</form>
