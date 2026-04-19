@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: boardgame-web-mobile
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn boardgame_web_mobile:app --host 0.0.0.0 --port $PORT
-    autoDeploy: true
