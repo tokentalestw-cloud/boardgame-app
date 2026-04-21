@@ -1,6 +1,7 @@
-fastapi>=0.115
-uvicorn[standard]>=0.30
-pandas>=2.2
-plotly>=5.24
-python-multipart>=0.0.9
-psycopg[binary]>=3.2
+fastapi
+uvicorn
+jinja2
+python-multipart
+psycopg[binary]
+pandas
+plotly

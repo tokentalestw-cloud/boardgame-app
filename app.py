@@ -201,15 +201,23 @@ def category_options(conn) -> list[str]:
 
 def summary_stats(conn) -> dict:
     cur = conn.cursor()
+
     cur.execute("SELECT COUNT(*) AS c FROM games")
-    games = cur.fetchone()[0]
+    row = cur.fetchone()
+    games = row["c"] if not isinstance(row, tuple) else row[0]
+
     cur.execute("SELECT COUNT(*) AS c FROM members")
-    members = cur.fetchone()[0]
+    row = cur.fetchone()
+    members = row["c"] if not isinstance(row, tuple) else row[0]
+
     cur.execute("SELECT COUNT(*) AS c FROM play_records")
-    records = cur.fetchone()[0]
+    row = cur.fetchone()
+    records = row["c"] if not isinstance(row, tuple) else row[0]
+
     cur.execute("SELECT COALESCE(MAX(play_date), '') AS latest FROM play_records")
-    latest_row = cur.fetchone()
-    latest = latest_row[0] if isinstance(latest_row, tuple) else latest_row["latest"]
+    row = cur.fetchone()
+    latest = row["latest"] if not isinstance(row, tuple) else row[0]
+
     return {"games": games, "members": members, "records": records, "latest": latest or "尚無紀錄"}
 
 
