@@ -75,6 +75,23 @@ def parse_optional_float(text: str) -> Optional[float]:
     return float(text) if text else None
 
 
+def load_notes(raw: str | None) -> list[str]:
+    raw = (raw or "").strip()
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+        if isinstance(data, list):
+            return [str(x).strip() for x in data if str(x).strip()]
+    except Exception:
+        pass
+    return [line.strip("- •	 ") for line in raw.splitlines() if line.strip()]
+
+
+def dump_notes(notes: list[str]) -> str:
+    return json.dumps([str(x).strip() for x in notes if str(x).strip()], ensure_ascii=False)
+
+
 def web_image_path(db_path: str) -> str:
     if not db_path:
         return ""
@@ -121,6 +138,7 @@ def create_tables() -> None:
                 user_rating DOUBLE PRECISION,
                 last_play_date TEXT DEFAULT '',
                 play_count INTEGER DEFAULT 0,
+                notes TEXT DEFAULT '[]',
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )""")
         cur.execute("""
@@ -152,6 +170,7 @@ def create_tables() -> None:
                 user_rating REAL,
                 last_play_date TEXT DEFAULT '',
                 play_count INTEGER DEFAULT 0,
+                notes TEXT DEFAULT '[]',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )""")
         cur.execute("""
@@ -172,6 +191,13 @@ def create_tables() -> None:
                 players TEXT NOT NULL,
                 winners TEXT NOT NULL
             )""")
+    if USE_POSTGRES:
+        cur.execute("ALTER TABLE games ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '[]'")
+    else:
+        cur.execute("PRAGMA table_info(games)")
+        cols = [row[1] if isinstance(row, tuple) else row["name"] for row in cur.fetchall()]
+        if "notes" not in cols:
+            cur.execute("ALTER TABLE games ADD COLUMN notes TEXT DEFAULT '[]'")
     conn.commit()
     conn.close()
 
@@ -202,16 +228,18 @@ def category_options(conn) -> list[str]:
 def summary_stats(conn) -> dict:
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) AS c FROM games")
-    games = cur.fetchone()[0]
+    row = cur.fetchone()
+    games = row["c"] if not isinstance(row, tuple) else row[0]
     cur.execute("SELECT COUNT(*) AS c FROM members")
-    members = cur.fetchone()[0]
+    row = cur.fetchone()
+    members = row["c"] if not isinstance(row, tuple) else row[0]
     cur.execute("SELECT COUNT(*) AS c FROM play_records")
-    records = cur.fetchone()[0]
+    row = cur.fetchone()
+    records = row["c"] if not isinstance(row, tuple) else row[0]
     cur.execute("SELECT COALESCE(MAX(play_date), '') AS latest FROM play_records")
     latest_row = cur.fetchone()
-    latest = latest_row[0] if isinstance(latest_row, tuple) else latest_row["latest"]
+    latest = latest_row["latest"] if not isinstance(latest_row, tuple) else latest_row[0]
     return {"games": games, "members": members, "records": records, "latest": latest or "尚無紀錄"}
-
 
 def top_game_rankings(conn, limit: int = 8) -> list[dict]:
     cur = conn.cursor()
@@ -446,6 +474,11 @@ def game_detail_block(conn, game: dict) -> str:
         f"<tr><td>{escape(r['play_date'])}</td><td>{escape(r['players'])}</td><td>{escape(r['winners'])}</td></tr>"
         for r in summary["history"]
     ) or '<tr><td colspan="3">目前尚無紀錄</td></tr>'
+    notes = load_notes(game.get("notes"))
+    notes_html = ''.join(
+        f'<li style="margin:8px 0"><div style="display:flex;gap:8px;align-items:flex-start;justify-content:space-between"><span>{escape(note)}</span><form method="post" action="/games/{game['id']}/notes/{idx}/delete" onsubmit="return confirm(\'刪除這則心得？\');"><button class="danger" type="submit">刪除</button></form></div></li>'
+        for idx, note in enumerate(notes)
+    ) or '<div class="empty">目前尚無心得，新增一則吧。</div>'
     return f"""
 <div class="card">
   <div class="item" style="padding:0;border:0;box-shadow:none;background:transparent">
@@ -457,8 +490,14 @@ def game_detail_block(conn, game: dict) -> str:
     </div>
   </div>
 </div>
+<div class="card"><div class="section-title"><div class="card-title">條列式心得</div><div class="small">每次想到都可以追加一則</div></div>
+  <form method="post" action="/games/{game['id']}/notes" class="form-grid">
+    <div><label>新增心得</label><textarea name="note_text" rows="3" placeholder="例如：前期資源很重要、兩人玩節奏比較緊、適合帶新手入門"></textarea></div>
+    <div class="btn-row"><button type="submit">➕ 新增心得</button></div>
+  </form>
+  <div style="margin-top:10px"><ul style="padding-left:18px;margin:0">{notes_html}</ul></div>
+</div>
 <div class="card"><div class="section-title"><div class="card-title">最近遊玩紀錄</div><a class="btn btn-soft" href="/records?game_filter={urlq(game['name'])}">查看全部</a></div><div class="table-wrap"><table><thead><tr><th>日期</th><th>玩家</th><th>勝者</th></tr></thead><tbody>{history_html}</tbody></table></div></div>"""
-
 
 def member_detail_block(conn, member: dict) -> str:
     summary = get_member_summary(conn, member['name'])
@@ -520,6 +559,19 @@ input:focus,select:focus,textarea:focus{{border-color:#8cb0ff;box-shadow:0 0 0 4
 .choice-wrap{{display:flex;flex-wrap:wrap;gap:8px}} .choice-chip{{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 12px;font-size:14px;cursor:pointer;color:var(--text)}} .choice-chip.active{{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(91,143,249,.22)}} .choice-chip.win{{border-color:#ffe0a8;background:#fff8ea}} .choice-chip.win.active{{background:linear-gradient(180deg,#ffb84d,#f39c12);color:#fff;border-color:transparent}}
 .quick-links{{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}} .quick-links .btn{{width:100%}} .fab-row{{display:flex;gap:10px;overflow:auto;scrollbar-width:none}} .fab-card{{min-width:180px;padding:14px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,color-mix(in srgb, var(--card) 98%, transparent), color-mix(in srgb, var(--card) 88%, var(--hero)));box-shadow:var(--shadow)}} .fab-card strong{{display:block;margin-bottom:4px}}
 .bottom-nav{{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:color-mix(in srgb, var(--header) 96%, transparent);backdrop-filter:blur(12px);border-top:1px solid color-mix(in srgb, var(--line) 75%, transparent)}} .bottom-grid{{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:8px}} .bottom-item{{text-decoration:none;text-align:center;padding:10px 6px;border-radius:16px;background:var(--soft);font-size:12px;color:var(--text)}} .bottom-item.active{{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;box-shadow:0 6px 16px rgba(91,143,249,.28)}}
+@media (max-width:760px){
+.item{display:grid;grid-template-columns:92px minmax(0,1fr);gap:14px;align-items:start}
+.item .thumb{width:92px;height:92px;border-radius:18px}
+.item .thumb.circle{width:92px;height:92px;border-radius:999px}
+.item h3{font-size:22px;line-height:1.2;margin:0 0 8px;word-break:keep-all;overflow-wrap:anywhere}
+.item .meta{font-size:15px;line-height:1.65;word-break:keep-all;overflow-wrap:anywhere}
+.item .spacer{display:none}
+.item .btn-row{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.item .btn-row form{margin:0}
+.item .btn-row .btn,.item .btn-row .btn-soft,.item .btn-row .danger,.item .btn-row button{width:100%;min-height:48px;font-size:15px;border-radius:14px;padding:12px 10px}
+.item .badge-row{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}
+.item .pill{margin:0}
+}
 @media (min-width:760px){{.grid-2{{grid-template-columns:1fr 1fr}}.stats{{grid-template-columns:repeat(4,1fr)}}.form-grid.two{{grid-template-columns:1fr 1fr}}.rank-grid{{grid-template-columns:1fr 1fr}}.modal-backdrop{{align-items:center;padding:24px}}.modal-sheet{{border-radius:24px;max-height:92vh}}.wrap{{padding-bottom:40px}}.bottom-nav{{display:none}}}}
 </style>
 <script>
@@ -584,7 +636,7 @@ def dashboard(notice: str = ""):
 @app.get("/games", response_class=HTMLResponse)
 def games_page(notice: str = "", q_text: str = "", category_filter: str = "全部"):
     conn = get_conn(); cur = conn.cursor()
-    sql = "SELECT id, name, category, image_path, bgg_score, user_rating, COALESCE(last_play_date,'') AS last_play_date, COALESCE(play_count,0) AS play_count FROM games WHERE 1=1"
+    sql = "SELECT id, name, category, image_path, bgg_score, user_rating, COALESCE(last_play_date,'') AS last_play_date, COALESCE(play_count,0) AS play_count, COALESCE(notes,'[]') AS notes FROM games WHERE 1=1"
     params = []
     if q_text.strip():
         sql += " AND (name LIKE %s OR category LIKE %s)" if USE_POSTGRES else " AND (name LIKE ? OR category LIKE ?)"
@@ -605,7 +657,7 @@ def games_page(notice: str = "", q_text: str = "", category_filter: str = "全�
         hide_attr = 'style="display:none"' if not image_url else ''
         badge_html = game_type_badges(conn, game["name"])
         items.append(f'''<div class="item"><img class="thumb" src="{escape(image_url)}" {hide_attr}><div><h3>{escape(game['name'])}</h3><div class="meta">類型：{escape(game['category'])}<br>BGG：{game['bgg_score'] if game['bgg_score'] is not None else '未填寫'}<br>玩家評分：{game['user_rating'] if game['user_rating'] is not None else '未填寫'}<br>遊玩次數：{game['play_count']}<br>最後遊玩：{escape(game['last_play_date'] or '尚無紀錄')}</div><div class="badge-row">{badge_html}</div></div><div class="spacer"></div><div class="btn-row"><a class="btn btn-soft" href="/games/{game['id']}">🔎 詳細</a><button class="btn-soft" type="button" onclick="openModal('game-modal-{game['id']}')">✏️ 編輯</button><form method="post" action="/games/{game['id']}/delete" onsubmit="return confirm('確定要刪除這款桌遊嗎？');"><button class="danger" type="submit">🗑️ 刪除</button></form></div></div>''')
-        modals.append(f'''<div class="modal-backdrop" id="game-modal-{game['id']}"><div class="modal-sheet"><div class="modal-head"><div><div class="card-title" style="margin:0">編輯桌遊</div><div class="small">修改桌遊資料，若不選圖片會保留原圖</div></div><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">關閉</button></div><form class="form-grid two" method="post" action="/games/{game['id']}/edit" enctype="multipart/form-data"><div><label>桌遊名稱</label><input name="name" value="{escape(game['name'])}" required></div><div><label>桌遊類型</label><input name="category" value="{escape(game['category'])}" list="category_list" required></div><div><label>BGG 分數</label><input name="bgg_score" inputmode="decimal" value="{game['bgg_score'] if game['bgg_score'] is not None else ''}"></div><div><label>玩家自評分</label><input name="user_rating" inputmode="decimal" value="{game['user_rating'] if game['user_rating'] is not None else ''}"></div><div style="grid-column:1/-1"><label>更換圖片</label><input id="edit_game_image_{game['id']}" type="file" name="image" data-preview-bind="edit_game_image_{game['id']}" data-preview-target="edit_game_preview_{game['id']}"></div><div style="grid-column:1/-1" class="preview-box"><img id="edit_game_preview_{game['id']}" src="{escape(image_url)}" {hide_attr}><div class="preview-hint">不選新圖會保留原圖</div></div><div style="grid-column:1/-1" class="btn-row"><button type="submit">儲存修改</button><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">取消</button></div></form></div></div>''')
+        modals.append(f'''<div class="modal-backdrop" id="game-modal-{game['id']}"><div class="modal-sheet"><div class="modal-head"><div><div class="card-title" style="margin:0">編輯桌遊</div><div class="small">修改桌遊資料，若不選圖片會保留原圖</div></div><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">關閉</button></div><form class="form-grid two" method="post" action="/games/{game['id']}/edit" enctype="multipart/form-data"><div><label>桌遊名稱</label><input name="name" value="{escape(game['name'])}" required></div><div><label>桌遊類型</label><input name="category" value="{escape(game['category'])}" list="category_list" required></div><div><label>BGG 分數</label><input name="bgg_score" inputmode="decimal" value="{game['bgg_score'] if game['bgg_score'] is not None else ''}"></div><div><label>玩家自評分</label><input name="user_rating" inputmode="decimal" value="{game['user_rating'] if game['user_rating'] is not None else ''}"></div><div style="grid-column:1/-1"><label>更換圖片</label><input id="edit_game_image_{game['id']}" type="file" name="image" data-preview-bind="edit_game_image_{game['id']}" data-preview-target="edit_game_preview_{game['id']}"></div><div style="grid-column:1/-1" class="preview-box"><img id="edit_game_preview_{game['id']}" src="{escape(image_url)}" {hide_attr}><div class="preview-hint">不選新圖會保留原圖</div></div><div style="grid-column:1/-1"><label>心得（每行一則）</label><textarea name="notes_text" rows="4">{escape(chr(10).join(load_notes(game.get("notes"))))}</textarea></div><div style="grid-column:1/-1" class="btn-row"><button type="submit">儲存修改</button><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">取消</button></div></form></div></div>''')
     body = f"""
 <div class="card"><div class="card-title">新增桌遊</div>
 <form class="form-grid two" method="post" action="/games" enctype="multipart/form-data">
@@ -613,7 +665,7 @@ def games_page(notice: str = "", q_text: str = "", category_filter: str = "全�
   <div><label>桌遊類型</label><input name="category" list="category_list" placeholder="例如 策略 / 派對" required></div>
   <div><label>BGG 分數</label><input name="bgg_score" inputmode="decimal" placeholder="例如 7.8"></div>
   <div><label>玩家自評分</label><input name="user_rating" inputmode="decimal" placeholder="例如 8.5"></div>
-  <div style="grid-column:1/-1"><label>圖片</label><input id="add_game_image" type="file" name="image" data-preview-bind="add_game_image" data-preview-target="add_game_preview"></div><div style="grid-column:1/-1" class="preview-box"><img id="add_game_preview" style="display:none"><div class="preview-hint">選圖後會即時預覽</div></div>
+  <div style="grid-column:1/-1"><label>圖片</label><input id="add_game_image" type="file" name="image" data-preview-bind="add_game_image" data-preview-target="add_game_preview"></div><div style="grid-column:1/-1" class="preview-box"><img id="add_game_preview" style="display:none"><div class="preview-hint">選圖後會即時預覽</div></div><div style="grid-column:1/-1"><label>心得（每行一則，可空白）</label><textarea name="notes_text" rows="3" placeholder="例如：互動很強、兩人局節奏快、適合新手入門"></textarea></div>
   <div style="grid-column:1/-1" class="btn-row"><button type="submit">➕ 儲存桌遊</button></div>
 </form><datalist id="category_list">{category_list}</datalist></div>
 <div class="card"><div class="section-title"><div class="card-title">桌遊列表</div><div class="small">共 {len(rows)} 款</div></div>
@@ -629,11 +681,11 @@ def games_page(notice: str = "", q_text: str = "", category_filter: str = "全�
 
 
 @app.post("/games")
-async def add_game(name: str = Form(...), category: str = Form(...), bgg_score: str = Form(""), user_rating: str = Form(""), image: UploadFile | None = File(None)):
+async def add_game(name: str = Form(...), category: str = Form(...), bgg_score: str = Form(""), user_rating: str = Form(""), notes_text: str = Form(""), image: UploadFile | None = File(None)):
     conn = get_conn(); cur = conn.cursor()
     try:
         image_path = copy_upload_to_library(image, GAME_IMAGE_DIR, name) if image and image.filename else ""
-        cur.execute(q("INSERT INTO games (name, category, image_path, bgg_score, user_rating) VALUES (%s, %s, %s, %s, %s)"), (name.strip(), category.strip(), image_path, parse_optional_float(bgg_score), parse_optional_float(user_rating)))
+        cur.execute(q("INSERT INTO games (name, category, image_path, bgg_score, user_rating, notes) VALUES (%s, %s, %s, %s, %s, %s)"), (name.strip(), category.strip(), image_path, parse_optional_float(bgg_score), parse_optional_float(user_rating), dump_notes(load_notes(notes_text))))
         conn.commit()
         return redirect("/games?notice=桌遊已新增")
     except Exception as exc:
@@ -644,16 +696,16 @@ async def add_game(name: str = Form(...), category: str = Form(...), bgg_score: 
 
 
 @app.post("/games/{game_id}/edit")
-async def edit_game(game_id: int, name: str = Form(...), category: str = Form(...), bgg_score: str = Form(""), user_rating: str = Form(""), image: UploadFile | None = File(None)):
+async def edit_game(game_id: int, name: str = Form(...), category: str = Form(...), bgg_score: str = Form(""), user_rating: str = Form(""), notes_text: str = Form(""), image: UploadFile | None = File(None)):
     conn = get_conn(); cur = conn.cursor()
     try:
-        cur.execute(q("SELECT name, image_path FROM games WHERE id = %s"), (game_id,))
+        cur.execute(q("SELECT name, image_path, COALESCE(notes,'[]') AS notes FROM games WHERE id = %s"), (game_id,))
         old = cur.fetchone()
         if not old:
             return redirect("/games?notice=找不到這款桌遊")
         old_name = old["name"]; existing_image = old["image_path"] or ""
         image_path = preserve_upload_or_existing(image, GAME_IMAGE_DIR, name.strip(), existing_image)
-        cur.execute(q("UPDATE games SET name = %s, category = %s, image_path = %s, bgg_score = %s, user_rating = %s WHERE id = %s"), (name.strip(), category.strip(), image_path, parse_optional_float(bgg_score), parse_optional_float(user_rating), game_id))
+        cur.execute(q("UPDATE games SET name = %s, category = %s, image_path = %s, bgg_score = %s, user_rating = %s, notes = %s WHERE id = %s"), (name.strip(), category.strip(), image_path, parse_optional_float(bgg_score), parse_optional_float(user_rating), dump_notes(load_notes(notes_text)), game_id))
         if old_name != name.strip():
             cur.execute(q("UPDATE play_records SET game_name = %s WHERE game_name = %s"), (name.strip(), old_name))
         cur.execute(q("UPDATE play_records SET game_type = %s WHERE game_id = %s OR game_name = %s"), (category.strip(), game_id, name.strip()))
@@ -771,7 +823,7 @@ def delete_member(member_id: int):
 @app.get("/games/{game_id}", response_class=HTMLResponse)
 def game_detail_page(game_id: int, notice: str = ""):
     conn = get_conn(); cur = conn.cursor()
-    cur.execute(q("SELECT id, name, category, image_path, bgg_score, user_rating, COALESCE(last_play_date,'') AS last_play_date, COALESCE(play_count,0) AS play_count FROM games WHERE id = %s"), (game_id,))
+    cur.execute(q("SELECT id, name, category, image_path, bgg_score, user_rating, COALESCE(last_play_date,'') AS last_play_date, COALESCE(play_count,0) AS play_count, COALESCE(notes,'[]') AS notes FROM games WHERE id = %s"), (game_id,))
     game = cur.fetchone()
     if not game:
         conn.close()
@@ -893,6 +945,44 @@ def delete_record(record_id: int):
     conn.commit(); conn.close(); sync_game_stats()
     return redirect("/records?notice=紀錄已刪除")
 
+
+
+@app.post("/games/{game_id}/notes")
+def add_game_note(game_id: int, note_text: str = Form("")):
+    note_text = (note_text or "").strip()
+    if not note_text:
+        return redirect(f"/games/{game_id}?notice=請先輸入心得內容")
+    conn = get_conn(); cur = conn.cursor()
+    try:
+        cur.execute(q("SELECT COALESCE(notes,'[]') AS notes FROM games WHERE id = %s"), (game_id,))
+        row = cur.fetchone()
+        if not row:
+            return redirect("/games?notice=找不到這款桌遊")
+        notes = load_notes(row["notes"] if not isinstance(row, tuple) else row[0])
+        notes.append(note_text)
+        cur.execute(q("UPDATE games SET notes = %s WHERE id = %s"), (dump_notes(notes), game_id))
+        conn.commit()
+        return redirect(f"/games/{game_id}?notice=心得已新增")
+    finally:
+        conn.close()
+
+
+@app.post("/games/{game_id}/notes/{note_index}/delete")
+def delete_game_note(game_id: int, note_index: int):
+    conn = get_conn(); cur = conn.cursor()
+    try:
+        cur.execute(q("SELECT COALESCE(notes,'[]') AS notes FROM games WHERE id = %s"), (game_id,))
+        row = cur.fetchone()
+        if not row:
+            return redirect("/games?notice=找不到這款桌遊")
+        notes = load_notes(row["notes"] if not isinstance(row, tuple) else row[0])
+        if 0 <= note_index < len(notes):
+            notes.pop(note_index)
+            cur.execute(q("UPDATE games SET notes = %s WHERE id = %s"), (dump_notes(notes), game_id))
+            conn.commit()
+        return redirect(f"/games/{game_id}?notice=心得已刪除")
+    finally:
+        conn.close()
 
 
 @app.get("/stats", response_class=HTMLResponse)
@@ -1052,4 +1142,4 @@ async def import_csv(kind: str = Form(...), file: UploadFile | None = File(None)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
-    uvicorn.run("boardgame_web_render_postgres_advanced:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)
