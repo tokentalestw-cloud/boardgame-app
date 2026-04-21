@@ -201,23 +201,15 @@ def category_options(conn) -> list[str]:
 
 def summary_stats(conn) -> dict:
     cur = conn.cursor()
-
     cur.execute("SELECT COUNT(*) AS c FROM games")
-    row = cur.fetchone()
-    games = row["c"] if not isinstance(row, tuple) else row[0]
-
+    games = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) AS c FROM members")
-    row = cur.fetchone()
-    members = row["c"] if not isinstance(row, tuple) else row[0]
-
+    members = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) AS c FROM play_records")
-    row = cur.fetchone()
-    records = row["c"] if not isinstance(row, tuple) else row[0]
-
+    records = cur.fetchone()[0]
     cur.execute("SELECT COALESCE(MAX(play_date), '') AS latest FROM play_records")
-    row = cur.fetchone()
-    latest = row["latest"] if not isinstance(row, tuple) else row[0]
-
+    latest_row = cur.fetchone()
+    latest = latest_row[0] if isinstance(latest_row, tuple) else latest_row["latest"]
     return {"games": games, "members": members, "records": records, "latest": latest or "尚無紀錄"}
 
 
@@ -605,7 +597,6 @@ def games_page(notice: str = "", q_text: str = "", category_filter: str = "全�
     cur.execute(q(sql), tuple(params) if USE_POSTGRES else params)
     rows = cur.fetchall()
     categories = category_options(conn)
-    conn.close()
     category_list = "".join(f'<option value="{escape(c)}">' for c in categories)
     filter_options = '<option value="全部">全部類型</option>' + "".join(f'<option value="{escape(c)}" {"selected" if c == category_filter else ""}>{escape(c)}</option>' for c in categories)
     items, modals = [], []
@@ -633,6 +624,7 @@ def games_page(notice: str = "", q_text: str = "", category_filter: str = "全�
 </form>
 <div class="list">{''.join(items) or '<div class="empty">目前尚無桌遊</div>'}</div></div>
 {''.join(modals)}"""
+    conn.close()
     return page_template("桌遊", body, "games", notice)
 
 
