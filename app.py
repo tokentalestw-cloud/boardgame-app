@@ -48,11 +48,7 @@ app.mount("/member_images", StaticFiles(directory=str(MEMBER_IMAGE_DIR)), name="
 
 def get_conn():
     if USE_POSTGRES:
-        return psycopg.connect(
-            DATABASE_URL,
-            row_factory=dict_row,
-            connect_timeout=5,
-        )
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row, connect_timeout=5)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -575,7 +571,7 @@ input:focus,select:focus,textarea:focus{{border-color:#8cb0ff;box-shadow:0 0 0 4
 .item .btn-row .btn,.item .btn-row .btn-soft,.item .btn-row .danger,.item .btn-row button{{width:100%;min-height:48px;font-size:15px;border-radius:14px;padding:12px 10px}}
 .item .badge-row{{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}}
 .item .pill{{margin:0}}
-.choice-chip.disabled{{opacity:.45;pointer-events:none;filter:grayscale(.2)}}
+.choice-chip.disabled{{opacity:.45;cursor:not-allowed;pointer-events:none}}
 }}
 @media (min-width:760px){{.grid-2{{grid-template-columns:1fr 1fr}}.stats{{grid-template-columns:repeat(4,1fr)}}.form-grid.two{{grid-template-columns:1fr 1fr}}.rank-grid{{grid-template-columns:1fr 1fr}}.modal-backdrop{{align-items:center;padding:24px}}.modal-sheet{{border-radius:24px;max-height:92vh}}.wrap{{padding-bottom:40px}}.bottom-nav{{display:none}}}}
 </style>
@@ -587,8 +583,8 @@ function closeModal(id){{const m=document.getElementById(id);if(m)m.classList.re
 document.addEventListener('click',function(e){{const b=e.target.closest('.modal-backdrop.show');if(b&&e.target===b)b.classList.remove('show');}});
 function fillGameType(gameInputId,typeInputId,mapId){{const gameInput=document.getElementById(gameInputId);const typeInput=document.getElementById(typeInputId);const dataEl=document.getElementById(mapId);if(!gameInput||!typeInput||!dataEl)return;try{{const data=JSON.parse(dataEl.textContent);typeInput.value=data[gameInput.value]||typeInput.value;}}catch(e){{}}}}
 function bindImagePreview(inputId,imgId){{const input=document.getElementById(inputId);const img=document.getElementById(imgId);if(!input||!img)return;input.addEventListener('change',()=>{{const file=input.files&&input.files[0];if(!file){{img.style.display='none';img.removeAttribute('src');return;}}const reader=new FileReader();reader.onload=e=>{{img.src=e.target.result;img.style.display='block';}};reader.readAsDataURL(file);}});}}
-function toggleChoice(setName, value, hiddenId, syncWinners){{const hidden=document.getElementById(hiddenId);if(!hidden)return;const clicked=document.querySelector(`[data-set="${{setName}}"][data-value="${{CSS.escape(value)}}"]`);if(clicked&&clicked.classList.contains('disabled'))return;let items=(hidden.value||'').split(',').map(s=>s.trim()).filter(Boolean);if(items.includes(value)){{items=items.filter(v=>v!==value);}}else{{items.push(value);}}hidden.value=items.join(', ');document.querySelectorAll(`[data-set="${{setName}}"]`).forEach(el=>{{const val=el.getAttribute('data-value');el.classList.toggle('active', items.includes(val));}});if(syncWinners) syncWinnerChoices();}}
-function syncWinnerChoices(){{const playersEl=document.getElementById('record_players');const winnersEl=document.getElementById('record_winners');if(!playersEl||!winnersEl)return;const players=(playersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);let winners=(winnersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);winners=winners.filter(w=>players.includes(w));winnersEl.value=winners.join(', ');document.querySelectorAll('[data-set="winner"]').forEach(el=>{{const val=el.getAttribute('data-value');const allowed=players.includes(val);el.classList.toggle('disabled', !allowed);el.setAttribute('aria-disabled', allowed ? 'false' : 'true');el.classList.toggle('active', winners.includes(val));}});}}
+function toggleChoice(setName, value, hiddenId, syncWinners){{const hidden=document.getElementById(hiddenId);if(!hidden)return;const target=document.querySelector(`[data-set="${{setName}}"][data-value="${{value}}"]`);if(target&&target.classList.contains('disabled'))return;let items=(hidden.value||'').split(',').map(s=>s.trim()).filter(Boolean);if(items.includes(value)){{items=items.filter(v=>v!==value);}}else{{items.push(value);}}hidden.value=items.join(', ');document.querySelectorAll(`[data-set="${{setName}}"]`).forEach(el=>{{const val=el.getAttribute('data-value');el.classList.toggle('active', items.includes(val));}});if(syncWinners) syncWinnerChoices();}}
+function syncWinnerChoices(){{const playersEl=document.getElementById('record_players');const winnersEl=document.getElementById('record_winners');if(!playersEl||!winnersEl)return;const players=(playersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);let winners=(winnersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);winners=winners.filter(w=>players.includes(w));winnersEl.value=winners.join(', ');document.querySelectorAll('[data-set="winner"]').forEach(el=>{{const val=el.getAttribute('data-value');const allowed=players.includes(val);el.style.display='inline-flex';el.classList.toggle('disabled', !allowed);el.classList.toggle('active', winners.includes(val));}});}}
 document.addEventListener('DOMContentLoaded',()=>{{document.querySelectorAll('[data-preview-bind]').forEach(el=>bindImagePreview(el.dataset.previewBind, el.dataset.previewTarget));syncWinnerChoices();applyTheme(localStorage.getItem('bg_theme')||'light');}});
 </script></head>
 <body><div class="header"><div class="wrap"><div class="top-row"><div class="title">{APP_TITLE}</div><button id="themeToggle" class="theme-toggle" type="button" onclick="toggleTheme()">🌙 深色</button></div><div class="nav">{nav_html}</div></div></div><div class="wrap">{notice_html}{body}</div><div class="bottom-nav"><div class="bottom-grid">{bottom_nav}</div></div></body></html>"""
@@ -663,7 +659,7 @@ def games_page(notice: str = "", q_text: str = "", category_filter: str = "全�
         try:
             badge_html = game_type_badges(conn, game["name"])
         except Exception:
-            badge_html = '<span class="pill">🎯 0 場</span>'
+            badge_html = ""
         items.append(f'''<div class="item"><img class="thumb" src="{escape(image_url)}" {hide_attr}><div><h3>{escape(game['name'])}</h3><div class="meta">類型：{escape(game['category'])}<br>BGG：{game['bgg_score'] if game['bgg_score'] is not None else '未填寫'}<br>玩家評分：{game['user_rating'] if game['user_rating'] is not None else '未填寫'}<br>遊玩次數：{game['play_count']}<br>最後遊玩：{escape(game['last_play_date'] or '尚無紀錄')}</div><div class="badge-row">{badge_html}</div></div><div class="spacer"></div><div class="btn-row"><a class="btn btn-soft" href="/games/{game['id']}">🔎 詳細</a><button class="btn-soft" type="button" onclick="openModal('game-modal-{game['id']}')">✏️ 編輯</button><form method="post" action="/games/{game['id']}/delete" onsubmit="return confirm('確定要刪除這款桌遊嗎？');"><button class="danger" type="submit">🗑️ 刪除</button></form></div></div>''')
         modals.append(f'''<div class="modal-backdrop" id="game-modal-{game['id']}"><div class="modal-sheet"><div class="modal-head"><div><div class="card-title" style="margin:0">編輯桌遊</div><div class="small">修改桌遊資料，若不選圖片會保留原圖</div></div><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">關閉</button></div><form class="form-grid two" method="post" action="/games/{game['id']}/edit" enctype="multipart/form-data"><div><label>桌遊名稱</label><input name="name" value="{escape(game['name'])}" required></div><div><label>桌遊類型</label><input name="category" value="{escape(game['category'])}" list="category_list" required></div><div><label>BGG 分數</label><input name="bgg_score" inputmode="decimal" value="{game['bgg_score'] if game['bgg_score'] is not None else ''}"></div><div><label>玩家自評分</label><input name="user_rating" inputmode="decimal" value="{game['user_rating'] if game['user_rating'] is not None else ''}"></div><div style="grid-column:1/-1"><label>更換圖片</label><input id="edit_game_image_{game['id']}" type="file" name="image" data-preview-bind="edit_game_image_{game['id']}" data-preview-target="edit_game_preview_{game['id']}"></div><div style="grid-column:1/-1" class="preview-box"><img id="edit_game_preview_{game['id']}" src="{escape(image_url)}" {hide_attr}><div class="preview-hint">不選新圖會保留原圖</div></div><div style="grid-column:1/-1"><label>心得（每行一則）</label><textarea name="notes_text" rows="4">{escape(chr(10).join(load_notes(game.get("notes"))))}</textarea></div><div style="grid-column:1/-1" class="btn-row"><button type="submit">儲存修改</button><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">取消</button></div></form></div></div>''')
     body = f"""
@@ -692,14 +688,12 @@ def games_page(notice: str = "", q_text: str = "", category_filter: str = "全�
 async def add_game(name: str = Form(...), category: str = Form(...), bgg_score: str = Form(""), user_rating: str = Form(""), notes_text: str = Form(""), image: UploadFile | None = File(None)):
     conn = get_conn(); cur = conn.cursor()
     try:
-        name = (name or "").strip()
-        category = (category or "").strip()
-        if not name:
-            return redirect("/games?notice=請輸入桌遊名稱")
-        if not category:
-            return redirect("/games?notice=請輸入桌遊類型")
+        name = name.strip()
+        category = category.strip()
+        if not name or not category:
+            return redirect("/games?notice=請輸入桌遊名稱與類型")
         image_path = copy_upload_to_library(image, GAME_IMAGE_DIR, name) if image and image.filename else ""
-        cur.execute(q("INSERT INTO games (name, category, image_path, bgg_score, user_rating, notes) VALUES (%s, %s, %s, %s, %s, %s)"), (name.strip(), category.strip(), image_path, parse_optional_float(bgg_score), parse_optional_float(user_rating), dump_notes(load_notes(notes_text))))
+        cur.execute(q("INSERT INTO games (name, category, image_path, bgg_score, user_rating, notes) VALUES (%s, %s, %s, %s, %s, %s)"), (name, category, image_path, parse_optional_float(bgg_score), parse_optional_float(user_rating), dump_notes(load_notes(notes_text))))
         conn.commit()
         return redirect("/games?notice=桌遊已新增")
     except Exception as exc:
@@ -902,7 +896,7 @@ def records_page(notice: str = "", q_text: str = "", game_filter: str = "", memb
         for m in members
     )
     winner_chip_html = "".join(
-        "<button type=\"button\" class=\"choice-chip win disabled\" data-set=\"winner\" data-value=\"" + escape(m["name"]) + "\" onclick=\"toggleChoice('winner', '" + escape(m["name"]) + "', 'record_winners', false)\">" + escape(m["name"]) + "</button>"
+        "<button type=\"button\" class=\"choice-chip win\" data-set=\"winner\" data-value=\"" + escape(m["name"]) + "\" onclick=\"toggleChoice('winner', '" + escape(m["name"]) + "', 'record_winners', false)\" style=\"display:none\">" + escape(m["name"]) + "</button>"
         for m in members
     )
     gmap = {g["name"]: g["category"] for g in games}
@@ -934,13 +928,7 @@ def records_page(notice: str = "", q_text: str = "", game_filter: str = "", memb
 
 
 @app.post("/records")
-def add_record(
-    play_date: str = Form(...),
-    game_name: str = Form(...),
-    game_type: str = Form(""),
-    players: str = Form(""),
-    winners: str = Form(""),
-):
+def add_record(play_date: str = Form(...), game_name: str = Form(...), game_type: str = Form(""), players: str = Form(""), winners: str = Form("")):
     conn = get_conn(); cur = conn.cursor()
     game_name = game_name.strip()
     cur.execute(q("SELECT id, category FROM games WHERE name = %s"), (game_name,))
@@ -949,23 +937,17 @@ def add_record(
     category = game_type.strip() or (game_row["category"] if game_row else "未分類")
     player_list = parse_csv_names(players)
     winner_list = parse_csv_names(winners)
-
     if not player_list:
         conn.close()
         return redirect("/records?notice=請至少選擇一位玩家")
     if not winner_list:
         conn.close()
         return redirect("/records?notice=請至少選擇一位勝者")
-
     invalid = [w for w in winner_list if w not in player_list]
     if invalid:
         conn.close()
         return redirect("/records?notice=勝者必須在玩家名單中")
-
-    cur.execute(
-        q("INSERT INTO play_records (play_date, game_id, game_name, game_type, players, winners) VALUES (%s, %s, %s, %s, %s, %s)"),
-        (play_date, game_id, game_name, category, ", ".join(player_list), ", ".join(winner_list))
-    )
+    cur.execute(q("INSERT INTO play_records (play_date, game_id, game_name, game_type, players, winners) VALUES (%s, %s, %s, %s, %s, %s)"), (play_date, game_id, game_name, category, ", ".join(player_list), ", ".join(winner_list)))
     conn.commit(); conn.close(); sync_game_stats()
     return redirect("/records?notice=遊玩紀錄已新增")
 
