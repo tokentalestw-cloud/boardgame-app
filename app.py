@@ -48,7 +48,7 @@ app.mount("/member_images", StaticFiles(directory=str(MEMBER_IMAGE_DIR)), name="
 
 def get_conn():
     if USE_POSTGRES:
-        return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row, connect_timeout=5)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -1023,8 +1023,11 @@ def stats_page(notice: str = "", player_filter: str = "", type_filter: str = "")
 
 @app.on_event("startup")
 def startup_event():
-    create_tables()
-    sync_game_stats()
+    try:
+        create_tables()
+        sync_game_stats()
+    except Exception as e:
+        print("Startup init warning:", e)
 
 
 
