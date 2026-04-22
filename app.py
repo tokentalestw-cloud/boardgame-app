@@ -48,11 +48,7 @@ app.mount("/member_images", StaticFiles(directory=str(MEMBER_IMAGE_DIR)), name="
 
 def get_conn():
     if USE_POSTGRES:
-        return psycopg.connect(
-            DATABASE_URL,
-            row_factory=dict_row,
-            connect_timeout=5,
-        )
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -563,19 +559,19 @@ input:focus,select:focus,textarea:focus{{border-color:#8cb0ff;box-shadow:0 0 0 4
 .choice-wrap{{display:flex;flex-wrap:wrap;gap:8px}} .choice-chip{{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 12px;font-size:14px;cursor:pointer;color:var(--text)}} .choice-chip.active{{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(91,143,249,.22)}} .choice-chip.win{{border-color:#ffe0a8;background:#fff8ea}} .choice-chip.win.active{{background:linear-gradient(180deg,#ffb84d,#f39c12);color:#fff;border-color:transparent}}
 .quick-links{{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}} .quick-links .btn{{width:100%}} .fab-row{{display:flex;gap:10px;overflow:auto;scrollbar-width:none}} .fab-card{{min-width:180px;padding:14px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,color-mix(in srgb, var(--card) 98%, transparent), color-mix(in srgb, var(--card) 88%, var(--hero)));box-shadow:var(--shadow)}} .fab-card strong{{display:block;margin-bottom:4px}}
 .bottom-nav{{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:color-mix(in srgb, var(--header) 96%, transparent);backdrop-filter:blur(12px);border-top:1px solid color-mix(in srgb, var(--line) 75%, transparent)}} .bottom-grid{{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:8px}} .bottom-item{{text-decoration:none;text-align:center;padding:10px 6px;border-radius:16px;background:var(--soft);font-size:12px;color:var(--text)}} .bottom-item.active{{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;box-shadow:0 6px 16px rgba(91,143,249,.28)}}
-@media (max-width:760px){
-.item{display:grid;grid-template-columns:92px minmax(0,1fr);gap:14px;align-items:start}
-.item .thumb{width:92px;height:92px;border-radius:18px}
-.item .thumb.circle{width:92px;height:92px;border-radius:999px}
-.item h3{font-size:22px;line-height:1.2;margin:0 0 8px;word-break:keep-all;overflow-wrap:anywhere}
-.item .meta{font-size:15px;line-height:1.65;word-break:keep-all;overflow-wrap:anywhere}
-.item .spacer{display:none}
-.item .btn-row{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
-.item .btn-row form{margin:0}
-.item .btn-row .btn,.item .btn-row .btn-soft,.item .btn-row .danger,.item .btn-row button{width:100%;min-height:48px;font-size:15px;border-radius:14px;padding:12px 10px}
-.item .badge-row{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}
-.item .pill{margin:0}
-}
+@media (max-width:760px){{
+.item{{display:grid;grid-template-columns:92px minmax(0,1fr);gap:14px;align-items:start}}
+.item .thumb{{width:92px;height:92px;border-radius:18px}}
+.item .thumb.circle{{width:92px;height:92px;border-radius:999px}}
+.item h3{{font-size:22px;line-height:1.2;margin:0 0 8px;word-break:keep-all;overflow-wrap:anywhere}}
+.item .meta{{font-size:15px;line-height:1.65;word-break:keep-all;overflow-wrap:anywhere}}
+.item .spacer{{display:none}}
+.item .btn-row{{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}}
+.item .btn-row form{{margin:0}}
+.item .btn-row .btn,.item .btn-row .btn-soft,.item .btn-row .danger,.item .btn-row button{{width:100%;min-height:48px;font-size:15px;border-radius:14px;padding:12px 10px}}
+.item .badge-row{{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}}
+.item .pill{{margin:0}}
+}}
 @media (min-width:760px){{.grid-2{{grid-template-columns:1fr 1fr}}.stats{{grid-template-columns:repeat(4,1fr)}}.form-grid.two{{grid-template-columns:1fr 1fr}}.rank-grid{{grid-template-columns:1fr 1fr}}.modal-backdrop{{align-items:center;padding:24px}}.modal-sheet{{border-radius:24px;max-height:92vh}}.wrap{{padding-bottom:40px}}.bottom-nav{{display:none}}}}
 </style>
 <script>
@@ -1027,10 +1023,8 @@ def stats_page(notice: str = "", player_filter: str = "", type_filter: str = "")
 
 @app.on_event("startup")
 def startup_event():
-    try:
-        create_tables()
-    except Exception as e:
-        print("Startup create_tables failed:", e)
+    create_tables()
+    sync_game_stats()
 
 
 
