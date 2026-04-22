@@ -48,7 +48,7 @@ app.mount("/member_images", StaticFiles(directory=str(MEMBER_IMAGE_DIR)), name="
 
 def get_conn():
     if USE_POSTGRES:
-        return psycopg.connect(DATABASE_URL, row_factory=dict_row, connect_timeout=5)
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -556,22 +556,22 @@ input:focus,select:focus,textarea:focus{{border-color:#8cb0ff;box-shadow:0 0 0 4
 .modal-backdrop{{position:fixed;inset:0;background:rgba(12,23,40,.48);display:none;align-items:flex-end;justify-content:center;z-index:30}} .modal-backdrop.show{{display:flex}} .modal-sheet{{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:24px 24px 0 0;padding:14px;max-height:90vh;overflow:auto}}
 .modal-head{{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}} .close-btn{{background:var(--soft);color:var(--text);border:1px solid var(--line);padding:10px 14px;border-radius:12px}}
 .preview-box{{display:flex;align-items:center;gap:10px;min-height:52px}} .preview-box img{{width:52px;height:52px;border-radius:14px;object-fit:cover;border:1px solid var(--line);background:#edf2f8}} .preview-box img.circle{{border-radius:999px}} .preview-hint{{font-size:12px;color:var(--sub)}}
-.choice-wrap{{display:flex;flex-wrap:wrap;gap:8px}} .choice-chip{{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 12px;font-size:14px;cursor:pointer;color:var(--text)}} .choice-chip.active{{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(91,143,249,.22)}} .choice-chip.win{{border-color:#ffe0a8;background:#fff8ea}} .choice-chip.win.active{{background:linear-gradient(180deg,#ffb84d,#f39c12);color:#fff;border-color:transparent}}
+.choice-wrap{{display:flex;flex-wrap:wrap;gap:8px}} .choice-chip{{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 12px;font-size:14px;cursor:pointer;color:var(--text)}} .choice-chip.active{{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(91,143,249,.22)}} .choice-chip.win{{border-color:#ffe0a8;background:#fff8ea}} .choice-chip.win.active{{background:linear-gradient(180deg,#ffb84d,#f39c12);color:#fff;border-color:transparent}} .choice-chip.disabled{{opacity:.45;cursor:not-allowed}}
 .quick-links{{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}} .quick-links .btn{{width:100%}} .fab-row{{display:flex;gap:10px;overflow:auto;scrollbar-width:none}} .fab-card{{min-width:180px;padding:14px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,color-mix(in srgb, var(--card) 98%, transparent), color-mix(in srgb, var(--card) 88%, var(--hero)));box-shadow:var(--shadow)}} .fab-card strong{{display:block;margin-bottom:4px}}
 .bottom-nav{{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:color-mix(in srgb, var(--header) 96%, transparent);backdrop-filter:blur(12px);border-top:1px solid color-mix(in srgb, var(--line) 75%, transparent)}} .bottom-grid{{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:8px}} .bottom-item{{text-decoration:none;text-align:center;padding:10px 6px;border-radius:16px;background:var(--soft);font-size:12px;color:var(--text)}} .bottom-item.active{{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;box-shadow:0 6px 16px rgba(91,143,249,.28)}}
-@media (max-width:760px){{
-.item{{display:grid;grid-template-columns:92px minmax(0,1fr);gap:14px;align-items:start}}
-.item .thumb{{width:92px;height:92px;border-radius:18px}}
-.item .thumb.circle{{width:92px;height:92px;border-radius:999px}}
-.item h3{{font-size:22px;line-height:1.2;margin:0 0 8px;word-break:keep-all;overflow-wrap:anywhere}}
-.item .meta{{font-size:15px;line-height:1.65;word-break:keep-all;overflow-wrap:anywhere}}
-.item .spacer{{display:none}}
-.item .btn-row{{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}}
-.item .btn-row form{{margin:0}}
-.item .btn-row .btn,.item .btn-row .btn-soft,.item .btn-row .danger,.item .btn-row button{{width:100%;min-height:48px;font-size:15px;border-radius:14px;padding:12px 10px}}
-.item .badge-row{{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}}
-.item .pill{{margin:0}}
-}}
+@media (max-width:760px){
+.item{display:grid;grid-template-columns:92px minmax(0,1fr);gap:14px;align-items:start}
+.item .thumb{width:92px;height:92px;border-radius:18px}
+.item .thumb.circle{width:92px;height:92px;border-radius:999px}
+.item h3{font-size:22px;line-height:1.2;margin:0 0 8px;word-break:keep-all;overflow-wrap:anywhere}
+.item .meta{font-size:15px;line-height:1.65;word-break:keep-all;overflow-wrap:anywhere}
+.item .spacer{display:none}
+.item .btn-row{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.item .btn-row form{margin:0}
+.item .btn-row .btn,.item .btn-row .btn-soft,.item .btn-row .danger,.item .btn-row button{width:100%;min-height:48px;font-size:15px;border-radius:14px;padding:12px 10px}
+.item .badge-row{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}
+.item .pill{margin:0}
+}
 @media (min-width:760px){{.grid-2{{grid-template-columns:1fr 1fr}}.stats{{grid-template-columns:repeat(4,1fr)}}.form-grid.two{{grid-template-columns:1fr 1fr}}.rank-grid{{grid-template-columns:1fr 1fr}}.modal-backdrop{{align-items:center;padding:24px}}.modal-sheet{{border-radius:24px;max-height:92vh}}.wrap{{padding-bottom:40px}}.bottom-nav{{display:none}}}}
 </style>
 <script>
@@ -582,8 +582,8 @@ function closeModal(id){{const m=document.getElementById(id);if(m)m.classList.re
 document.addEventListener('click',function(e){{const b=e.target.closest('.modal-backdrop.show');if(b&&e.target===b)b.classList.remove('show');}});
 function fillGameType(gameInputId,typeInputId,mapId){{const gameInput=document.getElementById(gameInputId);const typeInput=document.getElementById(typeInputId);const dataEl=document.getElementById(mapId);if(!gameInput||!typeInput||!dataEl)return;try{{const data=JSON.parse(dataEl.textContent);typeInput.value=data[gameInput.value]||typeInput.value;}}catch(e){{}}}}
 function bindImagePreview(inputId,imgId){{const input=document.getElementById(inputId);const img=document.getElementById(imgId);if(!input||!img)return;input.addEventListener('change',()=>{{const file=input.files&&input.files[0];if(!file){{img.style.display='none';img.removeAttribute('src');return;}}const reader=new FileReader();reader.onload=e=>{{img.src=e.target.result;img.style.display='block';}};reader.readAsDataURL(file);}});}}
-function toggleChoice(setName, value, hiddenId, syncWinners){{const hidden=document.getElementById(hiddenId);if(!hidden)return;let items=(hidden.value||'').split(',').map(s=>s.trim()).filter(Boolean);if(items.includes(value)){{items=items.filter(v=>v!==value);}}else{{items.push(value);}}hidden.value=items.join(', ');document.querySelectorAll(`[data-set="${{setName}}"]`).forEach(el=>{{const val=el.getAttribute('data-value');el.classList.toggle('active', items.includes(val));}});if(syncWinners) syncWinnerChoices();}}
-function syncWinnerChoices(){{const playersEl=document.getElementById('record_players');const winnersEl=document.getElementById('record_winners');if(!playersEl||!winnersEl)return;const players=(playersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);let winners=(winnersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);winners=winners.filter(w=>players.includes(w));winnersEl.value=winners.join(', ');document.querySelectorAll('[data-set="winner"]').forEach(el=>{{const val=el.getAttribute('data-value');const allowed=players.includes(val);el.style.display=allowed?'inline-flex':'none';el.classList.toggle('active', winners.includes(val));}});}}
+function toggleChoice(setName, value, hiddenId, syncWinners){{const hidden=document.getElementById(hiddenId);if(!hidden)return;const trigger=event&&event.currentTarget?event.currentTarget:null;if(trigger&&trigger.disabled)return;let items=(hidden.value||'').split(',').map(s=>s.trim()).filter(Boolean);if(items.includes(value)){{items=items.filter(v=>v!==value);}}else{{items.push(value);}}hidden.value=items.join(', ');document.querySelectorAll(`[data-set="${{setName}}"]`).forEach(el=>{{const val=el.getAttribute('data-value');el.classList.toggle('active', items.includes(val));}});if(syncWinners) syncWinnerChoices();}}
+function syncWinnerChoices(){{const playersEl=document.getElementById('record_players');const winnersEl=document.getElementById('record_winners');if(!playersEl||!winnersEl)return;const players=(playersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);let winners=(winnersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);winners=winners.filter(w=>players.includes(w));winnersEl.value=winners.join(', ');document.querySelectorAll('[data-set="winner"]').forEach(el=>{{const val=el.getAttribute('data-value');const allowed=players.includes(val);el.disabled=!allowed;el.classList.toggle('disabled', !allowed);el.style.display='inline-flex';el.classList.toggle('active', winners.includes(val));}});}}
 document.addEventListener('DOMContentLoaded',()=>{{document.querySelectorAll('[data-preview-bind]').forEach(el=>bindImagePreview(el.dataset.previewBind, el.dataset.previewTarget));syncWinnerChoices();applyTheme(localStorage.getItem('bg_theme')||'light');}});
 </script></head>
 <body><div class="header"><div class="wrap"><div class="top-row"><div class="title">{APP_TITLE}</div><button id="themeToggle" class="theme-toggle" type="button" onclick="toggleTheme()">🌙 深色</button></div><div class="nav">{nav_html}</div></div></div><div class="wrap">{notice_html}{body}</div><div class="bottom-nav"><div class="bottom-grid">{bottom_nav}</div></div></body></html>"""
@@ -888,7 +888,7 @@ def records_page(notice: str = "", q_text: str = "", game_filter: str = "", memb
         for m in members
     )
     winner_chip_html = "".join(
-        "<button type=\"button\" class=\"choice-chip win\" data-set=\"winner\" data-value=\"" + escape(m["name"]) + "\" onclick=\"toggleChoice('winner', '" + escape(m["name"]) + "', 'record_winners', false)\" style=\"display:none\">" + escape(m["name"]) + "</button>"
+        "<button type=\"button\" class=\"choice-chip win disabled\" data-set=\"winner\" data-value=\"" + escape(m["name"]) + "\" onclick=\"toggleChoice('winner', '" + escape(m["name"]) + "', 'record_winners', false)\" disabled>" + escape(m["name"]) + "</button>"
         for m in members
     )
     gmap = {g["name"]: g["category"] for g in games}
@@ -900,8 +900,8 @@ def records_page(notice: str = "", q_text: str = "", game_filter: str = "", memb
   <div><label>日期</label><input type="date" name="play_date" value="{date.today().isoformat()}" required></div>
   <div><label>桌遊</label><input id="record_game_name" name="game_name" list="games_list" onchange="fillGameType('record_game_name','record_game_type','game_type_map')" required><datalist id="games_list">{game_options}</datalist></div>
   <div><label>桌遊類型</label><input id="record_game_type" name="game_type" list="category_list" placeholder="可自動帶入或自行修改"></div>
-  <div style="grid-column:1/-1"><label>點選玩家</label><div class="choice-wrap">{member_chip_html}</div><input id="record_players" name="players" type="hidden" required><div class="preview-hint">可點選加入或取消，新增勝者區會跟著更新</div></div>
-  <div style="grid-column:1/-1"><label>點選勝者</label><div class="choice-wrap">{winner_chip_html}</div><input id="record_winners" name="winners" type="hidden" required><div class="preview-hint">只有已選玩家會顯示在這裡</div></div>
+  <div style="grid-column:1/-1"><label>點選玩家</label><div class="choice-wrap">{member_chip_html}</div><input id="record_players" name="players" type="hidden"><div class="preview-hint">可點選加入或取消，勝者區會跟著更新</div></div>
+  <div style="grid-column:1/-1"><label>點選勝者</label><div class="choice-wrap">{winner_chip_html}</div><input id="record_winners" name="winners" type="hidden"><div class="preview-hint">先選玩家，再點選勝者；未選為玩家的人會顯示但不可點。</div></div>
   <datalist id="category_list">{category_list}</datalist>
   <script id="game_type_map" type="application/json">{escape(json.dumps(gmap, ensure_ascii=False))}</script>
   <div style="grid-column:1/-1" class="btn-row"><button type="submit">➕ 新增紀錄</button></div>
@@ -920,7 +920,7 @@ def records_page(notice: str = "", q_text: str = "", game_filter: str = "", memb
 
 
 @app.post("/records")
-def add_record(play_date: str = Form(...), game_name: str = Form(...), game_type: str = Form(""), players: str = Form(...), winners: str = Form(...)):
+def add_record(play_date: str = Form(...), game_name: str = Form(...), game_type: str = Form(""), players: str = Form(""), winners: str = Form("")):
     conn = get_conn(); cur = conn.cursor()
     game_name = game_name.strip()
     cur.execute(q("SELECT id, category FROM games WHERE name = %s"), (game_name,))
@@ -929,6 +929,12 @@ def add_record(play_date: str = Form(...), game_name: str = Form(...), game_type
     category = game_type.strip() or (game_row["category"] if game_row else "未分類")
     player_list = parse_csv_names(players)
     winner_list = parse_csv_names(winners)
+    if not player_list:
+        conn.close()
+        return redirect("/records?notice=請先選擇至少一位玩家")
+    if not winner_list:
+        conn.close()
+        return redirect("/records?notice=請至少選擇一位勝者")
     invalid = [w for w in winner_list if w not in player_list]
     if invalid:
         conn.close()
@@ -1023,11 +1029,8 @@ def stats_page(notice: str = "", player_filter: str = "", type_filter: str = "")
 
 @app.on_event("startup")
 def startup_event():
-    try:
-        create_tables()
-        sync_game_stats()
-    except Exception as e:
-        print("Startup init warning:", e)
+    create_tables()
+    sync_game_stats()
 
 
 
