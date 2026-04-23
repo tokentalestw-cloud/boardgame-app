@@ -1220,3 +1220,70 @@ if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)
 
     print("SUPABASE ENABLED:", USE_SUPABASE_STORAGE)
+
+
+    def upload_to_supabase_storage(upload: Optional[UploadFile], bucket: str, folder: str, base_name: str) -> str:
+        if upload is None or not upload.filename or not USE_SUPABASE_STORAGE:
+            print("Supabase upload skipped:", {
+                "has_upload": bool(upload and upload.filename),
+                "use_storage": USE_SUPABASE_STORAGE,
+                "supabase_url": bool(SUPABASE_URL),
+                "service_role": bool(SUPABASE_SERVICE_ROLE_KEY),
+            })
+            return ""
+
+        ext = Path(upload.filename).suffix.lower() or ".png"
+        object_name = _safe_file_name(base_name, ext)
+        object_path = f"{folder}/{object_name}"
+
+        upload.file.seek(0)
+        data = upload.file.read()
+        content_type = upload.content_type or mimetypes.guess_type(upload.filename)[0] or "application/octet-stream"
+
+        endpoint = f"{SUPABASE_URL}/storage/v1/object/{bucket}/{quote(object_path)}"
+        req = request.Request(
+            endpoint,
+            data=data,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+                "apikey": SUPABASE_SERVICE_ROLE_KEY,
+                "Content-Type": content_type,
+                "x-upsert": "true",
+            },
+        )
+
+        try:
+            with request.urlopen(req, timeout=20) as resp:
+                body = resp.read().decode("utf-8", "ignore")
+                print("Supabase upload OK:", {
+                    "bucket": bucket,
+                    "object_path": object_path,
+                    "status": getattr(resp, "status", None),
+                    "body": body[:300],
+                })
+                return f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{quote(object_path)}"
+
+        except error.HTTPError as e:
+            try:
+                err_body = e.read().decode("utf-8", "ignore")
+            except Exception:
+                err_body = ""
+            print("Supabase upload HTTPError:", {
+                "bucket": bucket,
+                "object_path": object_path,
+                "status": e.code,
+                "reason": str(e),
+                "body": err_body[:500],
+                "endpoint": endpoint,
+            })
+            return ""
+
+        except Exception as e:
+            print("Supabase upload Exception:", {
+                "bucket": bucket,
+                "object_path": object_path,
+                "error": repr(e),
+                "endpoint": endpoint,
+            })
+            return ""
