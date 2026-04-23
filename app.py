@@ -50,6 +50,7 @@ SUPABASE_BUCKET_MEMBERS = os.getenv("SUPABASE_BUCKET_MEMBERS", "member-images").
 USE_SUPABASE_STORAGE = bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
 
 APP_TITLE = "桌遊遊玩紀錄系統｜強化版"
+print("SUPABASE ENABLED:", USE_SUPABASE_STORAGE)
 app = FastAPI(title=APP_TITLE)
 app.mount("/game_images", StaticFiles(directory=str(GAME_IMAGE_DIR)), name="game_images")
 app.mount("/member_images", StaticFiles(directory=str(MEMBER_IMAGE_DIR)), name="member_images")
@@ -112,9 +113,9 @@ def web_image_path(db_path: str) -> str:
         return f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{quote(obj_path)}"
     p = Path(db_path)
     if p.parent.name == "game_images":
-        return f"/game_images/{p.name}"
+        return "" if USE_SUPABASE_STORAGE else f"/game_images/{p.name}"
     if p.parent.name == "member_images":
-        return f"/member_images/{p.name}"
+        return "" if USE_SUPABASE_STORAGE else f"/member_images/{p.name}"
     return ""
 
 
@@ -197,7 +198,7 @@ def copy_upload_to_library(upload: Optional[UploadFile], target_dir: Path, base_
         uploaded = upload_to_supabase_storage(upload, bucket, folder, base_name)
         if uploaded:
             return uploaded
-        upload.file.seek(0)
+        raise RuntimeError("Supabase Storage 上傳失敗，未寫入本機備援。請檢查 Render 環境變數、bucket 權限與 logs。")
     ext = Path(upload.filename).suffix.lower() or ".png"
     target = target_dir / _safe_file_name(base_name, ext)
     with target.open("wb") as f:
@@ -292,6 +293,19 @@ def create_tables() -> None:
             cur.execute("ALTER TABLE games ADD COLUMN notes TEXT DEFAULT '[]'")
     conn.commit()
     conn.close()
+
+
+def migrate_old_local_image_paths() -> None:
+    if not USE_SUPABASE_STORAGE:
+        return
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE games SET image_path = '' WHERE image_path LIKE %s OR image_path LIKE %s", ('%/game_images/%', '%game_images/%')) if USE_POSTGRES else cur.execute("UPDATE games SET image_path = '' WHERE image_path LIKE ? OR image_path LIKE ?", ('%/game_images/%', '%game_images/%'))
+        cur.execute("UPDATE members SET image_path = '' WHERE image_path LIKE %s OR image_path LIKE %s", ('%/member_images/%', '%member_images/%')) if USE_POSTGRES else cur.execute("UPDATE members SET image_path = '' WHERE image_path LIKE ? OR image_path LIKE ?", ('%/member_images/%', '%member_images/%'))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def sync_game_stats() -> None:
@@ -566,7 +580,7 @@ def game_detail_block(conn, game: dict) -> str:
         f"<tr><td>{escape(r['play_date'])}</td><td>{escape(r['players'])}</td><td>{escape(r['winners'])}</td></tr>"
         for r in summary["history"]
     ) or '<tr><td colspan="3">目前尚無紀錄</td></tr>'
-    notes = load_notes(game.get("notes"))
+    notes = load_notes(game.get("notes") if isinstance(game, dict) else (game["notes"] if not isinstance(game, tuple) else game[0]))
     notes_html = ''.join(
         f'<li style="margin:8px 0"><div style="display:flex;gap:8px;align-items:flex-start;justify-content:space-between"><span>{escape(note)}</span><form method="post" action="/games/{game['id']}/notes/{idx}/delete" onsubmit="return confirm(\'刪除這則心得？\');"><button class="danger" type="submit">刪除</button></form></div></li>'
         for idx, note in enumerate(notes)
@@ -756,7 +770,7 @@ def games_page(notice: str = "", q_text: str = "", category_filter: str = "全�
         hide_attr = 'style="display:none"' if not image_url else ''
         badge_html = game_type_badges(conn, game["name"])
         items.append(f'''<div class="item"><img class="thumb" src="{escape(image_url)}" {hide_attr}><div><h3>{escape(game['name'])}</h3><div class="meta">類型：{escape(game['category'])}<br>BGG：{game['bgg_score'] if game['bgg_score'] is not None else '未填寫'}<br>玩家評分：{game['user_rating'] if game['user_rating'] is not None else '未填寫'}<br>遊玩次數：{game['play_count']}<br>最後遊玩：{escape(game['last_play_date'] or '尚無紀錄')}</div><div class="badge-row">{badge_html}</div></div><div class="spacer"></div><div class="btn-row"><a class="btn btn-soft" href="/games/{game['id']}">🔎 詳細</a><button class="btn-soft" type="button" onclick="openModal('game-modal-{game['id']}')">✏️ 編輯</button><form method="post" action="/games/{game['id']}/delete" onsubmit="return confirm('確定要刪除這款桌遊嗎？');"><button class="danger" type="submit">🗑️ 刪除</button></form></div></div>''')
-        modals.append(f'''<div class="modal-backdrop" id="game-modal-{game['id']}"><div class="modal-sheet"><div class="modal-head"><div><div class="card-title" style="margin:0">編輯桌遊</div><div class="small">修改桌遊資料，若不選圖片會保留原圖</div></div><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">關閉</button></div><form class="form-grid two" method="post" action="/games/{game['id']}/edit" enctype="multipart/form-data"><div><label>桌遊名稱</label><input name="name" value="{escape(game['name'])}" required></div><div><label>桌遊類型</label><input name="category" value="{escape(game['category'])}" list="category_list" required></div><div><label>BGG 分數</label><input name="bgg_score" inputmode="decimal" value="{game['bgg_score'] if game['bgg_score'] is not None else ''}"></div><div><label>玩家自評分</label><input name="user_rating" inputmode="decimal" value="{game['user_rating'] if game['user_rating'] is not None else ''}"></div><div style="grid-column:1/-1"><label>更換圖片</label><input id="edit_game_image_{game['id']}" type="file" name="image" data-preview-bind="edit_game_image_{game['id']}" data-preview-target="edit_game_preview_{game['id']}"></div><div style="grid-column:1/-1" class="preview-box"><img id="edit_game_preview_{game['id']}" src="{escape(image_url)}" {hide_attr}><div class="preview-hint">不選新圖會保留原圖</div></div><div style="grid-column:1/-1"><label>心得（每行一則）</label><textarea name="notes_text" rows="4">{escape(chr(10).join(load_notes(game.get("notes"))))}</textarea></div><div style="grid-column:1/-1" class="btn-row"><button type="submit">儲存修改</button><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">取消</button></div></form></div></div>''')
+        modals.append(f'''<div class="modal-backdrop" id="game-modal-{game['id']}"><div class="modal-sheet"><div class="modal-head"><div><div class="card-title" style="margin:0">編輯桌遊</div><div class="small">修改桌遊資料，若不選圖片會保留原圖</div></div><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">關閉</button></div><form class="form-grid two" method="post" action="/games/{game['id']}/edit" enctype="multipart/form-data"><div><label>桌遊名稱</label><input name="name" value="{escape(game['name'])}" required></div><div><label>桌遊類型</label><input name="category" value="{escape(game['category'])}" list="category_list" required></div><div><label>BGG 分數</label><input name="bgg_score" inputmode="decimal" value="{game['bgg_score'] if game['bgg_score'] is not None else ''}"></div><div><label>玩家自評分</label><input name="user_rating" inputmode="decimal" value="{game['user_rating'] if game['user_rating'] is not None else ''}"></div><div style="grid-column:1/-1"><label>更換圖片</label><input id="edit_game_image_{game['id']}" type="file" name="image" data-preview-bind="edit_game_image_{game['id']}" data-preview-target="edit_game_preview_{game['id']}"></div><div style="grid-column:1/-1" class="preview-box"><img id="edit_game_preview_{game['id']}" src="{escape(image_url)}" {hide_attr}><div class="preview-hint">不選新圖會保留原圖</div></div><div style="grid-column:1/-1"><label>心得（每行一則）</label><textarea name="notes_text" rows="4">{escape(chr(10).join(load_notes((game["notes"] if not isinstance(game, tuple) else game[0]))))}</textarea></div><div style="grid-column:1/-1" class="btn-row"><button type="submit">儲存修改</button><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">取消</button></div></form></div></div>''')
     body = f"""
 <div class="card"><div class="card-title">新增桌遊</div>
 <form class="form-grid two" method="post" action="/games" enctype="multipart/form-data">
@@ -1130,6 +1144,7 @@ def stats_page(notice: str = "", player_filter: str = "", type_filter: str = "")
 def startup_event():
     try:
         create_tables()
+        migrate_old_local_image_paths()
         if not USE_POSTGRES:
             sync_game_stats()
     except Exception as exc:
