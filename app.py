@@ -10,10 +10,7 @@ from typing import Optional
 from html import escape
 import json
 import io
-from urllib.parse import quote_plus, quote
-from urllib import request, error
-import mimetypes
-import time
+from urllib.parse import quote_plus
 
 import pandas as pd
 import plotly.express as px
@@ -43,12 +40,6 @@ MEMBER_IMAGE_DIR = DATA_DIR / "member_images"
 GAME_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 MEMBER_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
-SUPABASE_BUCKET_GAMES = os.getenv("SUPABASE_BUCKET_GAMES", "game-images").strip() or "game-images"
-SUPABASE_BUCKET_MEMBERS = os.getenv("SUPABASE_BUCKET_MEMBERS", "member-images").strip() or "member-images"
-USE_SUPABASE_STORAGE = bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
-
 APP_TITLE = "桌遊遊玩紀錄系統｜強化版"
 app = FastAPI(title=APP_TITLE)
 app.mount("/game_images", StaticFiles(directory=str(GAME_IMAGE_DIR)), name="game_images")
@@ -57,7 +48,7 @@ app.mount("/member_images", StaticFiles(directory=str(MEMBER_IMAGE_DIR)), name="
 
 def get_conn():
     if USE_POSTGRES:
-        return psycopg.connect(DATABASE_URL, row_factory=dict_row, connect_timeout=5)
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -104,12 +95,6 @@ def dump_notes(notes: list[str]) -> str:
 def web_image_path(db_path: str) -> str:
     if not db_path:
         return ""
-    if db_path.startswith("http://") or db_path.startswith("https://"):
-        return db_path
-    if db_path.startswith("supabase://") and USE_SUPABASE_STORAGE:
-        _, rest = db_path.split("supabase://", 1)
-        bucket, obj_path = rest.split("/", 1)
-        return f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{quote(obj_path)}"
     p = Path(db_path)
     if p.parent.name == "game_images":
         return f"/game_images/{p.name}"
@@ -122,66 +107,23 @@ def urlq(value: str) -> str:
     return quote_plus(value or "")
 
 
-def _safe_file_name(base_name: str, ext: str) -> str:
-    safe_name = "".join(ch for ch in base_name if ch.isalnum() or ch in "-_ ").strip().replace(" ", "_")
-    ts = str(int(time.time() * 1000))
-    return f"{safe_name or 'upload'}_{ts}{ext}"
-
-
-def upload_to_supabase_storage(upload: Optional[UploadFile], bucket: str, folder: str, base_name: str) -> str:
-    if upload is None or not upload.filename or not USE_SUPABASE_STORAGE:
-        return ""
-    ext = Path(upload.filename).suffix.lower() or ".png"
-    object_name = _safe_file_name(base_name, ext)
-    object_path = f"{folder}/{object_name}"
-    upload.file.seek(0)
-    data = upload.file.read()
-    content_type = upload.content_type or mimetypes.guess_type(upload.filename)[0] or "application/octet-stream"
-    endpoint = f"{SUPABASE_URL}/storage/v1/object/{bucket}/{quote(object_path)}"
-    req = request.Request(
-        endpoint,
-        data=data,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
-            "apikey": SUPABASE_SERVICE_ROLE_KEY,
-            "Content-Type": content_type,
-            "x-upsert": "true",
-        },
-    )
-    try:
-        with request.urlopen(req, timeout=20):
-            return f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{quote(object_path)}"
-    except Exception:
-        return ""
-
-
-def copy_upload_to_library(upload: Optional[UploadFile], target_dir: Path, base_name: str, bucket: str = "", folder: str = "") -> str:
+def copy_upload_to_library(upload: Optional[UploadFile], target_dir: Path, base_name: str) -> str:
     if upload is None or not upload.filename:
         return ""
-    if bucket and folder and USE_SUPABASE_STORAGE:
-        uploaded = upload_to_supabase_storage(upload, bucket, folder, base_name)
-        if uploaded:
-            return uploaded
-        upload.file.seek(0)
     ext = Path(upload.filename).suffix.lower() or ".png"
-    target = target_dir / _safe_file_name(base_name, ext)
+    safe_name = "".join(ch for ch in base_name if ch.isalnum() or ch in "-_ ").strip().replace(" ", "_")
+    target = target_dir / f"{safe_name}{ext}"
     with target.open("wb") as f:
         shutil.copyfileobj(upload.file, f)
     return str(target)
 
 
-def preserve_upload_or_existing(
-    upload: Optional[UploadFile],
-    target_dir: Path,
-    base_name: str,
-    existing_path: str,
-    bucket: str = "",
-    folder: str = "",
-) -> str:
+def preserve_upload_or_existing(upload: Optional[UploadFile], target_dir: Path, base_name: str, existing_path: str) -> str:
     if upload is None or not upload.filename:
         return existing_path or ""
-    return copy_upload_to_library(upload, target_dir, base_name, bucket=bucket, folder=folder)
+    return copy_upload_to_library(upload, target_dir, base_name)
+
+
 def create_tables() -> None:
     conn = get_conn()
     cur = conn.cursor()
@@ -587,14 +529,14 @@ body.theme-dark{--bg:#0f1723;--bg-grad-1:#0f1723;--bg-grad-2:#121c2b;--card:#162
 *{box-sizing:border-box} html,body{min-height:100%} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft JhengHei",sans-serif;background:linear-gradient(180deg,var(--bg-grad-1) 0%,var(--bg-grad-2) 100%);color:var(--text);transition:background .2s ease,color .2s ease}
 a{color:inherit} .wrap{max-width:980px;margin:0 auto;padding:12px 12px 90px} .header{position:sticky;top:0;z-index:20;background:var(--header);backdrop-filter:blur(12px);border-bottom:1px solid color-mix(in srgb, var(--line) 80%, transparent);padding-top:env(safe-area-inset-top)}
 .title{font-size:22px;font-weight:800;margin:6px 0 10px} .top-row{display:flex;align-items:center;justify-content:space-between;gap:10px} .theme-toggle{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:10px 12px;cursor:pointer;box-shadow:var(--shadow)} .nav{display:flex;gap:8px;overflow:auto;padding-bottom:8px} .nav-item{white-space:nowrap;text-decoration:none;color:var(--text);background:var(--soft);padding:10px 14px;border-radius:999px;font-size:14px}
-.nav-item.active{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;box-shadow:0 6px 16px rgba(91,143,249,.28)} .card{background:linear-gradient(180deg,color-mix(in srgb, var(--card) 100%, transparent),color-mix(in srgb, var(--card) 96%, var(--hero)));border:1px solid color-mix(in srgb, var(--line) 88%, transparent);border-radius:24px;padding:16px;box-shadow:var(--shadow);margin-top:12px}
+.nav-item.active{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;box-shadow:0 6px 16px rgba(91,143,249,.28)} .card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;box-shadow:var(--shadow);margin-top:12px}
 .card-title{font-size:18px;font-weight:800;margin:0 0 10px} .section-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px} .sub,.small{color:var(--sub);font-size:13px} .notice{background:var(--warn);border:1px solid var(--warn-line);padding:12px 14px;border-radius:16px;margin-top:12px}
 .grid-2{display:grid;grid-template-columns:1fr;gap:12px} .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px} .stat{background:linear-gradient(180deg,color-mix(in srgb, var(--card) 96%, #fff), color-mix(in srgb, var(--card) 90%, var(--hero)));border:1px solid var(--line);border-radius:18px;padding:14px} .num{font-size:26px;font-weight:800;margin-top:6px}
 .form-grid{display:grid;grid-template-columns:1fr;gap:10px} label{display:block;font-size:13px;color:var(--sub);margin-bottom:4px} input,select,textarea{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--card);font:inherit;color:var(--text);outline:none}
 input:focus,select:focus,textarea:focus{border-color:#8cb0ff;box-shadow:0 0 0 4px rgba(91,143,249,.12)} button,.btn{border:0;background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;padding:12px 16px;border-radius:14px;font-weight:700;font:inherit;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .btn-row{display:flex;gap:8px;flex-wrap:wrap} .btn-soft{background:var(--soft);color:var(--accent-deep);border:1px solid color-mix(in srgb, var(--accent) 18%, var(--line))} .danger{background:var(--danger);color:#c0392b;border:1px solid var(--danger-line)} .list{display:grid;gap:12px}
-.item{display:flex;gap:14px;align-items:flex-start;background:linear-gradient(180deg,color-mix(in srgb, var(--card) 100%, transparent),color-mix(in srgb, var(--card) 94%, var(--hero)));border:1px solid color-mix(in srgb, var(--line) 86%, transparent);border-radius:22px;padding:14px;box-shadow:0 10px 24px rgba(25,38,61,.07);transition:transform .16s ease, box-shadow .16s ease} .thumb{width:76px;height:76px;border-radius:18px;object-fit:cover;background:#edf2f8;flex:none} .thumb.circle{border-radius:999px}
-.item h3{margin:0 0 6px;font-size:18px;font-weight:800} .meta{color:var(--sub);font-size:13px;line-height:1.62} .spacer{flex:1} .tag,.pill{display:inline-block;padding:6px 11px;border-radius:999px;font-size:12px;border:1px solid #ffe0a8;background:#fff8ea;color:#cb7a00;font-weight:700}
+.item{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px;box-shadow:0 8px 20px rgba(25,38,61,.05)} .thumb{width:76px;height:76px;border-radius:18px;object-fit:cover;background:#edf2f8;flex:none} .thumb.circle{border-radius:999px}
+.item h3{margin:0 0 4px;font-size:17px} .meta{color:var(--sub);font-size:13px;line-height:1.58} .spacer{flex:1} .tag,.pill{display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;border:1px solid #ffe0a8;background:#fff8ea;color:#cb7a00}
 .hero-grid{display:grid;gap:10px} .hero-card{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:18px;padding:12px;background:linear-gradient(180deg,color-mix(in srgb, var(--card) 100%, transparent), color-mix(in srgb, var(--card) 92%, var(--hero)))} .hero-avatar{width:56px;height:56px;border-radius:999px;object-fit:cover;background:#edf2f8}
 .empty{color:var(--sub);padding:10px 0} .table-wrap{overflow:auto} table{width:100%;border-collapse:collapse;font-size:14px} th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .rank-grid{display:grid;gap:12px} .rank-card{border:1px solid var(--line);border-radius:18px;padding:12px;background:var(--card)} .rank-line{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed color-mix(in srgb, var(--line) 70%, transparent)} .rank-line:last-child{border-bottom:0}
@@ -602,10 +544,9 @@ input:focus,select:focus,textarea:focus{border-color:#8cb0ff;box-shadow:0 0 0 4p
 .modal-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px} .close-btn{background:var(--soft);color:var(--text);border:1px solid var(--line);padding:10px 14px;border-radius:12px}
 .preview-box{display:flex;align-items:center;gap:10px;min-height:52px} .preview-box img{width:52px;height:52px;border-radius:14px;object-fit:cover;border:1px solid var(--line);background:#edf2f8} .preview-box img.circle{border-radius:999px} .preview-hint{font-size:12px;color:var(--sub)}
 .choice-wrap{display:flex;flex-wrap:wrap;gap:8px} .choice-chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 12px;font-size:14px;cursor:pointer;color:var(--text)} .choice-chip.active{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(91,143,249,.22)} .choice-chip.win{border-color:#ffe0a8;background:#fff8ea} .choice-chip.win.active{background:linear-gradient(180deg,#ffb84d,#f39c12);color:#fff;border-color:transparent}
-.choice-chip.disabled{opacity:.45;cursor:not-allowed;filter:saturate(.6)}
-.quick-links{display:grid;grid-template-columns:repeat(2,1fr);gap:10px} .quick-links .btn{width:100%} .fab-row{display:flex;gap:10px;overflow:auto;scrollbar-width:none} .fab-card{min-width:180px;padding:14px;border-radius:20px;border:1px solid color-mix(in srgb, var(--line) 85%, transparent);background:linear-gradient(180deg,color-mix(in srgb, var(--card) 98%, transparent), color-mix(in srgb, var(--card) 88%, var(--hero)));box-shadow:var(--shadow)} .fab-card strong{display:block;margin-bottom:4px}
+.choice-chip.disabled{opacity:.45;cursor:not-allowed}
+.quick-links{display:grid;grid-template-columns:repeat(2,1fr);gap:10px} .quick-links .btn{width:100%} .fab-row{display:flex;gap:10px;overflow:auto;scrollbar-width:none} .fab-card{min-width:180px;padding:14px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,color-mix(in srgb, var(--card) 98%, transparent), color-mix(in srgb, var(--card) 88%, var(--hero)));box-shadow:var(--shadow)} .fab-card strong{display:block;margin-bottom:4px}
 .bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:color-mix(in srgb, var(--header) 96%, transparent);backdrop-filter:blur(12px);border-top:1px solid color-mix(in srgb, var(--line) 75%, transparent)} .bottom-grid{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:8px} .bottom-item{text-decoration:none;text-align:center;padding:10px 6px;border-radius:16px;background:var(--soft);font-size:12px;color:var(--text)} .bottom-item.active{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;box-shadow:0 6px 16px rgba(91,143,249,.28)}
-@media (hover:hover){.item:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(25,38,61,.10)} .btn:hover,.btn-soft:hover,.danger:hover{transform:translateY(-1px)}}
 @media (max-width:760px){
   .item{display:grid;grid-template-columns:92px minmax(0,1fr);gap:14px;align-items:start}
   .item .thumb{width:92px;height:92px;border-radius:18px}
@@ -749,7 +690,7 @@ def games_page(notice: str = "", q_text: str = "", category_filter: str = "全�
 async def add_game(name: str = Form(...), category: str = Form(...), bgg_score: str = Form(""), user_rating: str = Form(""), notes_text: str = Form(""), image: UploadFile | None = File(None)):
     conn = get_conn(); cur = conn.cursor()
     try:
-        image_path = copy_upload_to_library(image, GAME_IMAGE_DIR, name, bucket=SUPABASE_BUCKET_GAMES, folder="games") if image and image.filename else ""
+        image_path = copy_upload_to_library(image, GAME_IMAGE_DIR, name) if image and image.filename else ""
         cur.execute(q("INSERT INTO games (name, category, image_path, bgg_score, user_rating, notes) VALUES (%s, %s, %s, %s, %s, %s)"), (name.strip(), category.strip(), image_path, parse_optional_float(bgg_score), parse_optional_float(user_rating), dump_notes(load_notes(notes_text))))
         conn.commit()
         return redirect("/games?notice=桌遊已新增")
@@ -769,7 +710,7 @@ async def edit_game(game_id: int, name: str = Form(...), category: str = Form(..
         if not old:
             return redirect("/games?notice=找不到這款桌遊")
         old_name = old["name"]; existing_image = old["image_path"] or ""
-        image_path = preserve_upload_or_existing(image, GAME_IMAGE_DIR, name.strip(), existing_image, bucket=SUPABASE_BUCKET_GAMES, folder="games")
+        image_path = preserve_upload_or_existing(image, GAME_IMAGE_DIR, name.strip(), existing_image)
         cur.execute(q("UPDATE games SET name = %s, category = %s, image_path = %s, bgg_score = %s, user_rating = %s, notes = %s WHERE id = %s"), (name.strip(), category.strip(), image_path, parse_optional_float(bgg_score), parse_optional_float(user_rating), dump_notes(load_notes(notes_text)), game_id))
         if old_name != name.strip():
             cur.execute(q("UPDATE play_records SET game_name = %s WHERE game_name = %s"), (name.strip(), old_name))
@@ -835,7 +776,7 @@ def members_page(notice: str = "", q_text: str = ""):
 async def add_member(name: str = Form(...), favorite_types: str = Form(""), image: UploadFile | None = File(None)):
     conn = get_conn(); cur = conn.cursor()
     try:
-        image_path = copy_upload_to_library(image, MEMBER_IMAGE_DIR, name, bucket=SUPABASE_BUCKET_MEMBERS, folder="members") if image and image.filename else ""
+        image_path = copy_upload_to_library(image, MEMBER_IMAGE_DIR, name) if image and image.filename else ""
         cur.execute(q("INSERT INTO members (name, favorite_types, image_path) VALUES (%s, %s, %s)"), (name.strip(), favorite_types.strip(), image_path))
         conn.commit()
         return redirect("/members?notice=成員已新增")
@@ -855,7 +796,7 @@ async def edit_member(member_id: int, name: str = Form(...), favorite_types: str
         if not old:
             return redirect("/members?notice=找不到這位成員")
         old_name = old["name"]; existing_image = old["image_path"] or ""
-        image_path = preserve_upload_or_existing(image, MEMBER_IMAGE_DIR, name.strip(), existing_image, bucket=SUPABASE_BUCKET_MEMBERS, folder="members")
+        image_path = preserve_upload_or_existing(image, MEMBER_IMAGE_DIR, name.strip(), existing_image)
         cur.execute(q("UPDATE members SET name = %s, favorite_types = %s, image_path = %s WHERE id = %s"), (name.strip(), favorite_types.strip(), image_path, member_id))
         if old_name != name.strip():
             cur.execute("SELECT id, players, winners FROM play_records")
@@ -985,7 +926,7 @@ def records_page(notice: str = "", q_text: str = "", game_filter: str = "", memb
 
 
 @app.post("/records")
-def add_record(play_date: str = Form(...), game_name: str = Form(...), game_type: str = Form(""), players: str = Form(""), winners: str = Form("")):
+def add_record(play_date: str = Form(...), game_name: str = Form(...), game_type: str = Form(""), players: str = Form(...), winners: str = Form(...)):
     conn = get_conn(); cur = conn.cursor()
     game_name = game_name.strip()
     cur.execute(q("SELECT id, category FROM games WHERE name = %s"), (game_name,))
@@ -994,12 +935,6 @@ def add_record(play_date: str = Form(...), game_name: str = Form(...), game_type
     category = game_type.strip() or (game_row["category"] if game_row else "未分類")
     player_list = parse_csv_names(players)
     winner_list = parse_csv_names(winners)
-    if not player_list:
-        conn.close()
-        return redirect("/records?notice=請至少選擇一位玩家")
-    if not winner_list:
-        conn.close()
-        return redirect("/records?notice=請至少選擇一位勝者")
     invalid = [w for w in winner_list if w not in player_list]
     if invalid:
         conn.close()
@@ -1094,12 +1029,8 @@ def stats_page(notice: str = "", player_filter: str = "", type_filter: str = "")
 
 @app.on_event("startup")
 def startup_event():
-    try:
-        create_tables()
-        if not USE_POSTGRES:
-            sync_game_stats()
-    except Exception as exc:
-        print("Startup DB init failed:", exc)
+    create_tables()
+    sync_game_stats()
 
 
 
@@ -1218,5 +1149,3 @@ async def import_csv(kind: str = Form(...), file: UploadFile | None = File(None)
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
     uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)
-
-    print("SUPABASE:", SUPABASE_URL)
