@@ -469,7 +469,7 @@ def get_member_breakdown(conn, member_name: str) -> list[dict]:
 def game_detail_block(conn, game: dict) -> str:
     summary = get_game_summary(conn, game["name"])
     image_url = web_image_path(game["image_path"])
-    hide_attr = '' if not image_url else ''
+    hide_attr = 'style="display:none"' if not image_url else ''
     history_html = ''.join(
         f"<tr><td>{escape(r['play_date'])}</td><td>{escape(r['players'])}</td><td>{escape(r['winners'])}</td></tr>"
         for r in summary["history"]
@@ -502,7 +502,7 @@ def game_detail_block(conn, game: dict) -> str:
 def member_detail_block(conn, member: dict) -> str:
     summary = get_member_summary(conn, member['name'])
     image_url = web_image_path(member['image_path'])
-    hide_attr = '' if not image_url else ''
+    hide_attr = 'style="display:none"' if not image_url else ''
     best_line = f"<div class='pill'>🔥 最強類型：{escape(summary['best_type'])}（{summary['best_rate']}）</div>" if summary['best_type'] else ''
     breakdown = get_member_breakdown(conn, member['name'])
     rows_html = ''.join(
@@ -530,35 +530,38 @@ def page_template(title: str, body: str, active: str, notice: str = "") -> HTMLR
         "records": ("📝 紀錄", "/records"),
         "stats": ("📈 勝率", "/stats"),
     }
-    nav_html = "".join(f'<a class="nav-item {"active" if k == active else ""}" href="{href}">{label}</a>' for k, (label, href) in nav.items())
-    bottom_nav = "".join(f'<a class="bottom-item {"active" if k == active else ""}" href="{href}">{label}</a>' for k, (label, href) in nav.items())
+    nav_html = "".join(
+        f'<a class="nav-item {"active" if k == active else ""}" href="{href}">{label}</a>'
+        for k, (label, href) in nav.items()
+    )
+    bottom_nav = "".join(
+        f'<a class="bottom-item {"active" if k == active else ""}" href="{href}">{label}</a>'
+        for k, (label, href) in nav.items()
+    )
     notice_html = f'<div class="notice">{escape(notice)}</div>' if notice else ""
-    html = f"""<!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>{escape(title)}</title>
-<style>
-:root{{--bg:#f5f7fb;--bg-grad-1:#f7f9fd;--bg-grad-2:#f2f6fb;--card:#fff;--text:#243447;--sub:#5b6b7a;--line:#dde6f0;--accent:#5b8ff9;--accent-deep:#3b6fdc;--soft:#eef3fa;--warn:#fff7e6;--warn-line:#f6c667;--danger:#fff1f1;--danger-line:#f1c2c2;--shadow:0 8px 24px rgba(25,38,61,.06);--header:rgba(245,247,251,.92);--hero:#edf4ff;}}
-body.theme-dark{{--bg:#0f1723;--bg-grad-1:#0f1723;--bg-grad-2:#121c2b;--card:#162233;--text:#e9eef7;--sub:#a4b3c8;--line:#26364a;--accent:#78a6ff;--accent-deep:#5a87f0;--soft:#1b2a3d;--warn:#3a2d15;--warn-line:#8c6c25;--danger:#3d2022;--danger-line:#94484d;--shadow:0 12px 28px rgba(0,0,0,.28);--header:rgba(15,23,35,.92);--hero:#1a2b42;}}
-*{{box-sizing:border-box}} html,body{{min-height:100%}} body{{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft JhengHei",sans-serif;background:linear-gradient(180deg,var(--bg-grad-1) 0%,var(--bg-grad-2) 100%);color:var(--text);transition:background .2s ease,color .2s ease}}
-a{{color:inherit}} .wrap{{max-width:980px;margin:0 auto;padding:12px 12px 90px}} .header{{position:sticky;top:0;z-index:20;background:var(--header);backdrop-filter:blur(12px);border-bottom:1px solid color-mix(in srgb, var(--line) 80%, transparent);padding-top:env(safe-area-inset-top)}}
-.title{{font-size:22px;font-weight:800;margin:6px 0 10px}} .top-row{{display:flex;align-items:center;justify-content:space-between;gap:10px}} .theme-toggle{{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:10px 12px;cursor:pointer;box-shadow:var(--shadow)}} .nav{{display:flex;gap:8px;overflow:auto;padding-bottom:8px}} .nav-item{{white-space:nowrap;text-decoration:none;color:var(--text);background:var(--soft);padding:10px 14px;border-radius:999px;font-size:14px}}
-.nav-item.active{{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;box-shadow:0 6px 16px rgba(91,143,249,.28)}} .card{{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;box-shadow:var(--shadow);margin-top:12px}}
-.card-title{{font-size:18px;font-weight:800;margin:0 0 10px}} .section-title{{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}} .sub,.small{{color:var(--sub);font-size:13px}} .notice{{background:var(--warn);border:1px solid var(--warn-line);padding:12px 14px;border-radius:16px;margin-top:12px}}
-.grid-2{{display:grid;grid-template-columns:1fr;gap:12px}} .stats{{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}} .stat{{background:linear-gradient(180deg,color-mix(in srgb, var(--card) 96%, #fff), color-mix(in srgb, var(--card) 90%, var(--hero)));border:1px solid var(--line);border-radius:18px;padding:14px}} .num{{font-size:26px;font-weight:800;margin-top:6px}}
-.form-grid{{display:grid;grid-template-columns:1fr;gap:10px}} label{{display:block;font-size:13px;color:var(--sub);margin-bottom:4px}} input,select,textarea{{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--card);font:inherit;color:var(--text);outline:none}}
-input:focus,select:focus,textarea:focus{{border-color:#8cb0ff;box-shadow:0 0 0 4px rgba(91,143,249,.12)}} button,.btn{{border:0;background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;padding:12px 16px;border-radius:14px;font-weight:700;font:inherit;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}}
-.btn-row{{display:flex;gap:8px;flex-wrap:wrap}} .btn-soft{{background:var(--soft);color:var(--accent-deep);border:1px solid color-mix(in srgb, var(--accent) 18%, var(--line))}} .danger{{background:var(--danger);color:#c0392b;border:1px solid var(--danger-line)}} .list{{display:grid;gap:12px}}
-.item{{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px;box-shadow:0 8px 20px rgba(25,38,61,.05)}} .thumb{{width:76px;height:76px;border-radius:18px;object-fit:cover;background:#edf2f8;flex:none}} .thumb.circle{{border-radius:999px}}
-.item h3{{margin:0 0 4px;font-size:17px}} .meta{{color:var(--sub);font-size:13px;line-height:1.58}} .spacer{{flex:1}} .tag,.pill{{display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;border:1px solid #ffe0a8;background:#fff8ea;color:#cb7a00}}
-.hero-grid{{display:grid;gap:10px}} .hero-card{{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:18px;padding:12px;background:linear-gradient(180deg,color-mix(in srgb, var(--card) 100%, transparent), color-mix(in srgb, var(--card) 92%, var(--hero)))}} .hero-avatar{{width:56px;height:56px;border-radius:999px;object-fit:cover;background:#edf2f8}}
-.empty{{color:var(--sub);padding:10px 0}} .table-wrap{{overflow:auto}} table{{width:100%;border-collapse:collapse;font-size:14px}} th,td{{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}}
-.rank-grid{{display:grid;gap:12px}} .rank-card{{border:1px solid var(--line);border-radius:18px;padding:12px;background:var(--card)}} .rank-line{{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed color-mix(in srgb, var(--line) 70%, transparent)}} .rank-line:last-child{{border-bottom:0}}
-.modal-backdrop{{position:fixed;inset:0;background:rgba(12,23,40,.48);display:none;align-items:flex-end;justify-content:center;z-index:30}} .modal-backdrop.show{{display:flex}} .modal-sheet{{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:24px 24px 0 0;padding:14px;max-height:90vh;overflow:auto}}
-.modal-head{{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}} .close-btn{{background:var(--soft);color:var(--text);border:1px solid var(--line);padding:10px 14px;border-radius:12px}}
-.preview-box{{display:flex;align-items:center;gap:10px;min-height:52px}} .preview-box img{{width:52px;height:52px;border-radius:14px;object-fit:cover;border:1px solid var(--line);background:#edf2f8}} .preview-box img.circle{{border-radius:999px}} .preview-hint{{font-size:12px;color:var(--sub)}}
-.choice-wrap{{display:flex;flex-wrap:wrap;gap:8px}} .choice-chip{{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 12px;font-size:14px;cursor:pointer;color:var(--text)}} .choice-chip.active{{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(91,143,249,.22)}} .choice-chip.win{{border-color:#ffe0a8;background:#fff8ea}} .choice-chip.win.active{{background:linear-gradient(180deg,#ffb84d,#f39c12);color:#fff;border-color:transparent}}
-.quick-links{{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}} .quick-links .btn{{width:100%}} .fab-row{{display:flex;gap:10px;overflow:auto;scrollbar-width:none}} .fab-card{{min-width:180px;padding:14px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,color-mix(in srgb, var(--card) 98%, transparent), color-mix(in srgb, var(--card) 88%, var(--hero)));box-shadow:var(--shadow)}} .fab-card strong{{display:block;margin-bottom:4px}}
-.bottom-nav{{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:color-mix(in srgb, var(--header) 96%, transparent);backdrop-filter:blur(12px);border-top:1px solid color-mix(in srgb, var(--line) 75%, transparent)}} .bottom-grid{{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:8px}} .bottom-item{{text-decoration:none;text-align:center;padding:10px 6px;border-radius:16px;background:var(--soft);font-size:12px;color:var(--text)}} .bottom-item.active{{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;box-shadow:0 6px 16px rgba(91,143,249,.28)}}
+    style_block = r"""<style>
+:root{--bg:#f5f7fb;--bg-grad-1:#f7f9fd;--bg-grad-2:#f2f6fb;--card:#fff;--text:#243447;--sub:#5b6b7a;--line:#dde6f0;--accent:#5b8ff9;--accent-deep:#3b6fdc;--soft:#eef3fa;--warn:#fff7e6;--warn-line:#f6c667;--danger:#fff1f1;--danger-line:#f1c2c2;--shadow:0 8px 24px rgba(25,38,61,.06);--header:rgba(245,247,251,.92);--hero:#edf4ff;}
+body.theme-dark{--bg:#0f1723;--bg-grad-1:#0f1723;--bg-grad-2:#121c2b;--card:#162233;--text:#e9eef7;--sub:#a4b3c8;--line:#26364a;--accent:#78a6ff;--accent-deep:#5a87f0;--soft:#1b2a3d;--warn:#3a2d15;--warn-line:#8c6c25;--danger:#3d2022;--danger-line:#94484d;--shadow:0 12px 28px rgba(0,0,0,.28);--header:rgba(15,23,35,.92);--hero:#1a2b42;}
+*{box-sizing:border-box} html,body{min-height:100%} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft JhengHei",sans-serif;background:linear-gradient(180deg,var(--bg-grad-1) 0%,var(--bg-grad-2) 100%);color:var(--text);transition:background .2s ease,color .2s ease}
+a{color:inherit} .wrap{max-width:980px;margin:0 auto;padding:12px 12px 90px} .header{position:sticky;top:0;z-index:20;background:var(--header);backdrop-filter:blur(12px);border-bottom:1px solid color-mix(in srgb, var(--line) 80%, transparent);padding-top:env(safe-area-inset-top)}
+.title{font-size:22px;font-weight:800;margin:6px 0 10px} .top-row{display:flex;align-items:center;justify-content:space-between;gap:10px} .theme-toggle{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:10px 12px;cursor:pointer;box-shadow:var(--shadow)} .nav{display:flex;gap:8px;overflow:auto;padding-bottom:8px} .nav-item{white-space:nowrap;text-decoration:none;color:var(--text);background:var(--soft);padding:10px 14px;border-radius:999px;font-size:14px}
+.nav-item.active{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;box-shadow:0 6px 16px rgba(91,143,249,.28)} .card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;box-shadow:var(--shadow);margin-top:12px}
+.card-title{font-size:18px;font-weight:800;margin:0 0 10px} .section-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px} .sub,.small{color:var(--sub);font-size:13px} .notice{background:var(--warn);border:1px solid var(--warn-line);padding:12px 14px;border-radius:16px;margin-top:12px}
+.grid-2{display:grid;grid-template-columns:1fr;gap:12px} .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px} .stat{background:linear-gradient(180deg,color-mix(in srgb, var(--card) 96%, #fff), color-mix(in srgb, var(--card) 90%, var(--hero)));border:1px solid var(--line);border-radius:18px;padding:14px} .num{font-size:26px;font-weight:800;margin-top:6px}
+.form-grid{display:grid;grid-template-columns:1fr;gap:10px} label{display:block;font-size:13px;color:var(--sub);margin-bottom:4px} input,select,textarea{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--card);font:inherit;color:var(--text);outline:none}
+input:focus,select:focus,textarea:focus{border-color:#8cb0ff;box-shadow:0 0 0 4px rgba(91,143,249,.12)} button,.btn{border:0;background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;padding:12px 16px;border-radius:14px;font-weight:700;font:inherit;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap} .btn-soft{background:var(--soft);color:var(--accent-deep);border:1px solid color-mix(in srgb, var(--accent) 18%, var(--line))} .danger{background:var(--danger);color:#c0392b;border:1px solid var(--danger-line)} .list{display:grid;gap:12px}
+.item{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px;box-shadow:0 8px 20px rgba(25,38,61,.05)} .thumb{width:76px;height:76px;border-radius:18px;object-fit:cover;background:#edf2f8;flex:none} .thumb.circle{border-radius:999px}
+.item h3{margin:0 0 4px;font-size:17px} .meta{color:var(--sub);font-size:13px;line-height:1.58} .spacer{flex:1} .tag,.pill{display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;border:1px solid #ffe0a8;background:#fff8ea;color:#cb7a00}
+.hero-grid{display:grid;gap:10px} .hero-card{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:18px;padding:12px;background:linear-gradient(180deg,color-mix(in srgb, var(--card) 100%, transparent), color-mix(in srgb, var(--card) 92%, var(--hero)))} .hero-avatar{width:56px;height:56px;border-radius:999px;object-fit:cover;background:#edf2f8}
+.empty{color:var(--sub);padding:10px 0} .table-wrap{overflow:auto} table{width:100%;border-collapse:collapse;font-size:14px} th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.rank-grid{display:grid;gap:12px} .rank-card{border:1px solid var(--line);border-radius:18px;padding:12px;background:var(--card)} .rank-line{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed color-mix(in srgb, var(--line) 70%, transparent)} .rank-line:last-child{border-bottom:0}
+.modal-backdrop{position:fixed;inset:0;background:rgba(12,23,40,.48);display:none;align-items:flex-end;justify-content:center;z-index:30} .modal-backdrop.show{display:flex} .modal-sheet{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:24px 24px 0 0;padding:14px;max-height:90vh;overflow:auto}
+.modal-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px} .close-btn{background:var(--soft);color:var(--text);border:1px solid var(--line);padding:10px 14px;border-radius:12px}
+.preview-box{display:flex;align-items:center;gap:10px;min-height:52px} .preview-box img{width:52px;height:52px;border-radius:14px;object-fit:cover;border:1px solid var(--line);background:#edf2f8} .preview-box img.circle{border-radius:999px} .preview-hint{font-size:12px;color:var(--sub)}
+.choice-wrap{display:flex;flex-wrap:wrap;gap:8px} .choice-chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 12px;font-size:14px;cursor:pointer;color:var(--text)} .choice-chip.active{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(91,143,249,.22)} .choice-chip.win{border-color:#ffe0a8;background:#fff8ea} .choice-chip.win.active{background:linear-gradient(180deg,#ffb84d,#f39c12);color:#fff;border-color:transparent}
+.quick-links{display:grid;grid-template-columns:repeat(2,1fr);gap:10px} .quick-links .btn{width:100%} .fab-row{display:flex;gap:10px;overflow:auto;scrollbar-width:none} .fab-card{min-width:180px;padding:14px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,color-mix(in srgb, var(--card) 98%, transparent), color-mix(in srgb, var(--card) 88%, var(--hero)));box-shadow:var(--shadow)} .fab-card strong{display:block;margin-bottom:4px}
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:color-mix(in srgb, var(--header) 96%, transparent);backdrop-filter:blur(12px);border-top:1px solid color-mix(in srgb, var(--line) 75%, transparent)} .bottom-grid{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:8px} .bottom-item{text-decoration:none;text-align:center;padding:10px 6px;border-radius:16px;background:var(--soft);font-size:12px;color:var(--text)} .bottom-item.active{background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;box-shadow:0 6px 16px rgba(91,143,249,.28)}
 @media (max-width:760px){
 .item{display:grid;grid-template-columns:92px minmax(0,1fr);gap:14px;align-items:start}
 .item .thumb{width:92px;height:92px;border-radius:18px}
@@ -572,23 +575,38 @@ input:focus,select:focus,textarea:focus{{border-color:#8cb0ff;box-shadow:0 0 0 4
 .item .badge-row{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}
 .item .pill{margin:0}
 }
-@media (min-width:760px){{.grid-2{{grid-template-columns:1fr 1fr}}.stats{{grid-template-columns:repeat(4,1fr)}}.form-grid.two{{grid-template-columns:1fr 1fr}}.rank-grid{{grid-template-columns:1fr 1fr}}.modal-backdrop{{align-items:center;padding:24px}}.modal-sheet{{border-radius:24px;max-height:92vh}}.wrap{{padding-bottom:40px}}.bottom-nav{{display:none}}}}
-</style>
-<script>
-function applyTheme(theme){{document.body.classList.toggle('theme-dark', theme==='dark');const btn=document.getElementById('themeToggle');if(btn) btn.textContent = theme==='dark' ? '☀️ 淺色' : '🌙 深色'; localStorage.setItem('bg_theme', theme);}}
-function toggleTheme(){{const dark=document.body.classList.contains('theme-dark');applyTheme(dark?'light':'dark');}}
-function openModal(id){{const m=document.getElementById(id);if(m)m.classList.add('show');}}
-function closeModal(id){{const m=document.getElementById(id);if(m)m.classList.remove('show');}}
-document.addEventListener('click',function(e){{const b=e.target.closest('.modal-backdrop.show');if(b&&e.target===b)b.classList.remove('show');}});
-function fillGameType(gameInputId,typeInputId,mapId){{const gameInput=document.getElementById(gameInputId);const typeInput=document.getElementById(typeInputId);const dataEl=document.getElementById(mapId);if(!gameInput||!typeInput||!dataEl)return;try{{const data=JSON.parse(dataEl.textContent);typeInput.value=data[gameInput.value]||typeInput.value;}}catch(e){{}}}}
-function bindImagePreview(inputId,imgId){{const input=document.getElementById(inputId);const img=document.getElementById(imgId);if(!input||!img)return;input.addEventListener('change',()=>{{const file=input.files&&input.files[0];if(!file){{img.style.display='none';img.removeAttribute('src');return;}}const reader=new FileReader();reader.onload=e=>{{img.src=e.target.result;img.style.display='block';}};reader.readAsDataURL(file);}});}}
-function toggleChoice(setName, value, hiddenId, syncWinners){{const hidden=document.getElementById(hiddenId);if(!hidden)return;let items=(hidden.value||'').split(',').map(s=>s.trim()).filter(Boolean);if(items.includes(value)){{items=items.filter(v=>v!==value);}}else{{items.push(value);}}hidden.value=items.join(', ');document.querySelectorAll(`[data-set="${{setName}}"]`).forEach(el=>{{const val=el.getAttribute('data-value');el.classList.toggle('active', items.includes(val));}});if(syncWinners) syncWinnerChoices();}}
-function syncWinnerChoices(){{const playersEl=document.getElementById('record_players');const winnersEl=document.getElementById('record_winners');if(!playersEl||!winnersEl)return;const players=(playersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);let winners=(winnersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);winners=winners.filter(w=>players.includes(w));winnersEl.value=winners.join(', ');document.querySelectorAll('[data-set="winner"]').forEach(el=>{{const val=el.getAttribute('data-value');const allowed=players.includes(val);el.style.display='inline-flex';el.style.opacity=allowed?'1':'0.45';el.style.pointerEvents=allowed?'auto':'none';el.classList.toggle('active', winners.includes(val));}});}}
-document.addEventListener('DOMContentLoaded',()=>{{document.querySelectorAll('[data-preview-bind]').forEach(el=>bindImagePreview(el.dataset.previewBind, el.dataset.previewTarget));syncWinnerChoices();applyTheme(localStorage.getItem('bg_theme')||'light');}});
-</script></head>
-<body><div class="header"><div class="wrap"><div class="top-row"><div class="title">{APP_TITLE}</div><button id="themeToggle" class="theme-toggle" type="button" onclick="toggleTheme()">🌙 深色</button></div><div class="nav">{nav_html}</div></div></div><div class="wrap">{notice_html}{body}</div><div class="bottom-nav"><div class="bottom-grid">{bottom_nav}</div></div></body></html>"""
+@media (min-width:760px){.grid-2{grid-template-columns:1fr 1fr}.stats{grid-template-columns:repeat(4,1fr)}.form-grid.two{grid-template-columns:1fr 1fr}.rank-grid{grid-template-columns:1fr 1fr}.modal-backdrop{align-items:center;padding:24px}.modal-sheet{border-radius:24px;max-height:92vh}.wrap{padding-bottom:40px}.bottom-nav{display:none}}
+</style>"""
+    script_block = r"""<script>
+function applyTheme(theme){document.body.classList.toggle('theme-dark', theme==='dark');const btn=document.getElementById('themeToggle');if(btn) btn.textContent = theme==='dark' ? '☀️ 淺色' : '🌙 深色'; localStorage.setItem('bg_theme', theme);}
+function toggleTheme(){const dark=document.body.classList.contains('theme-dark');applyTheme(dark?'light':'dark');}
+function openModal(id){const m=document.getElementById(id);if(m)m.classList.add('show');}
+function closeModal(id){const m=document.getElementById(id);if(m)m.classList.remove('show');}
+document.addEventListener('click',function(e){const b=e.target.closest('.modal-backdrop.show');if(b&&e.target===b)b.classList.remove('show');});
+function fillGameType(gameInputId,typeInputId,mapId){const gameInput=document.getElementById(gameInputId);const typeInput=document.getElementById(typeInputId);const dataEl=document.getElementById(mapId);if(!gameInput||!typeInput||!dataEl)return;try{const data=JSON.parse(dataEl.textContent);typeInput.value=data[gameInput.value]||typeInput.value;}catch(e){}}
+function bindImagePreview(inputId,imgId){const input=document.getElementById(inputId);const img=document.getElementById(imgId);if(!input||!img)return;input.addEventListener('change',()=>{const file=input.files&&input.files[0];if(!file){img.style.display='none';img.removeAttribute('src');return;}const reader=new FileReader();reader.onload=e=>{img.src=e.target.result;img.style.display='block';};reader.readAsDataURL(file);});}
+function toggleChoice(setName, value, hiddenId, syncWinners){const hidden=document.getElementById(hiddenId);if(!hidden)return;let items=(hidden.value||'').split(',').map(s=>s.trim()).filter(Boolean);if(items.includes(value)){items=items.filter(v=>v!==value);}else{items.push(value);}hidden.value=items.join(', ');document.querySelectorAll(`[data-set="${setName}"]`).forEach(el=>{const val=el.getAttribute('data-value');el.classList.toggle('active', items.includes(val));});if(syncWinners) syncWinnerChoices();}
+function syncWinnerChoices(){const playersEl=document.getElementById('record_players');const winnersEl=document.getElementById('record_winners');if(!playersEl||!winnersEl)return;const players=(playersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);let winners=(winnersEl.value||'').split(',').map(s=>s.trim()).filter(Boolean);winners=winners.filter(w=>players.includes(w));winnersEl.value=winners.join(', ');document.querySelectorAll('[data-set="winner"]').forEach(el=>{const val=el.getAttribute('data-value');const allowed=players.includes(val);el.style.display=allowed?'inline-flex':'none';el.classList.toggle('active', winners.includes(val));});}
+document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('[data-preview-bind]').forEach(el=>bindImagePreview(el.dataset.previewBind, el.dataset.previewTarget));syncWinnerChoices();applyTheme(localStorage.getItem('bg_theme')||'light');});
+</script>"""
+    html = (
+        "<!doctype html>"
+        "<html lang=\"zh-Hant\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">"
+        f"<title>{escape(title)}</title>"
+        + style_block
+        + script_block
+        + "</head><body><div class=\"header\"><div class=\"wrap\"><div class=\"top-row\"><div class=\"title\">"
+        + APP_TITLE
+        + "</div><button id=\"themeToggle\" class=\"theme-toggle\" type=\"button\" onclick=\"toggleTheme()\">🌙 深色</button></div><div class=\"nav\">"
+        + nav_html
+        + "</div></div></div><div class=\"wrap\">"
+        + notice_html
+        + body
+        + "</div><div class=\"bottom-nav\"><div class=\"bottom-grid\">"
+        + bottom_nav
+        + "</div></div></body></html>"
+    )
     return HTMLResponse(html)
-
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(notice: str = ""):
@@ -605,7 +623,7 @@ def dashboard(notice: str = ""):
     top_games = pd.DataFrame(top_games_data)
     top_members = pd.DataFrame(top_members_data)
     hero_cards = "".join(
-        f'''<a class="hero-card" style="text-decoration:none" href="/stats?player_filter={urlq(h['player'])}&type_filter={urlq(h['game_type'])}"><img class="hero-avatar" src="{escape(h['image_path'])}" {'' if not h['image_path'] else ''}><div><div><strong>👑 {escape(h['game_type'])}</strong></div><div>{escape(h['player'])}</div><div class="small">勝率 {h['win_rate']:.1f}%｜勝場 {h['wins']} / {h['games']}</div></a>'''
+        f'''<a class="hero-card" style="text-decoration:none" href="/stats?player_filter={urlq(h['player'])}&type_filter={urlq(h['game_type'])}"><img class="hero-avatar" src="{escape(h['image_path'])}" {'style="display:none"' if not h['image_path'] else ''}><div><div><strong>👑 {escape(h['game_type'])}</strong></div><div>{escape(h['player'])}</div><div class="small">勝率 {h['win_rate']:.1f}%｜勝場 {h['wins']} / {h['games']}</div></a>'''
         for h in heroes
     ) or '<div class="empty">目前尚無紀錄</div>'
     game_ranks_html = "".join(f"<div class='rank-line'><div><strong>#{i+1}</strong> {escape(r['game_name'])}</div><div class='small'>{r['plays']} 場</div></div>" for i, r in enumerate(top_games_data)) or '<div class="empty">目前尚無紀錄</div>'
@@ -654,7 +672,7 @@ def games_page(notice: str = "", q_text: str = "", category_filter: str = "全�
     items, modals = [], []
     for game in rows:
         image_url = web_image_path(game["image_path"])
-        hide_attr = '' if not image_url else ''
+        hide_attr = 'style="display:none"' if not image_url else ''
         badge_html = game_type_badges(conn, game["name"])
         items.append(f'''<div class="item"><img class="thumb" src="{escape(image_url)}" {hide_attr}><div><h3>{escape(game['name'])}</h3><div class="meta">類型：{escape(game['category'])}<br>BGG：{game['bgg_score'] if game['bgg_score'] is not None else '未填寫'}<br>玩家評分：{game['user_rating'] if game['user_rating'] is not None else '未填寫'}<br>遊玩次數：{game['play_count']}<br>最後遊玩：{escape(game['last_play_date'] or '尚無紀錄')}</div><div class="badge-row">{badge_html}</div></div><div class="spacer"></div><div class="btn-row"><a class="btn btn-soft" href="/games/{game['id']}">🔎 詳細</a><button class="btn-soft" type="button" onclick="openModal('game-modal-{game['id']}')">✏️ 編輯</button><form method="post" action="/games/{game['id']}/delete" onsubmit="return confirm('確定要刪除這款桌遊嗎？');"><button class="danger" type="submit">🗑️ 刪除</button></form></div></div>''')
         modals.append(f'''<div class="modal-backdrop" id="game-modal-{game['id']}"><div class="modal-sheet"><div class="modal-head"><div><div class="card-title" style="margin:0">編輯桌遊</div><div class="small">修改桌遊資料，若不選圖片會保留原圖</div></div><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">關閉</button></div><form class="form-grid two" method="post" action="/games/{game['id']}/edit" enctype="multipart/form-data"><div><label>桌遊名稱</label><input name="name" value="{escape(game['name'])}" required></div><div><label>桌遊類型</label><input name="category" value="{escape(game['category'])}" list="category_list" required></div><div><label>BGG 分數</label><input name="bgg_score" inputmode="decimal" value="{game['bgg_score'] if game['bgg_score'] is not None else ''}"></div><div><label>玩家自評分</label><input name="user_rating" inputmode="decimal" value="{game['user_rating'] if game['user_rating'] is not None else ''}"></div><div style="grid-column:1/-1"><label>更換圖片</label><input id="edit_game_image_{game['id']}" type="file" name="image" data-preview-bind="edit_game_image_{game['id']}" data-preview-target="edit_game_preview_{game['id']}"></div><div style="grid-column:1/-1" class="preview-box"><img id="edit_game_preview_{game['id']}" src="{escape(image_url)}" {hide_attr}><div class="preview-hint">不選新圖會保留原圖</div></div><div style="grid-column:1/-1"><label>心得（每行一則）</label><textarea name="notes_text" rows="4">{escape(chr(10).join(load_notes(game.get("notes"))))}</textarea></div><div style="grid-column:1/-1" class="btn-row"><button type="submit">儲存修改</button><button class="close-btn" type="button" onclick="closeModal('game-modal-{game['id']}')">取消</button></div></form></div></div>''')
@@ -665,7 +683,7 @@ def games_page(notice: str = "", q_text: str = "", category_filter: str = "全�
   <div><label>桌遊類型</label><input name="category" list="category_list" placeholder="例如 策略 / 派對" required></div>
   <div><label>BGG 分數</label><input name="bgg_score" inputmode="decimal" placeholder="例如 7.8"></div>
   <div><label>玩家自評分</label><input name="user_rating" inputmode="decimal" placeholder="例如 8.5"></div>
-  <div style="grid-column:1/-1"><label>圖片</label><input id="add_game_image" type="file" name="image" data-preview-bind="add_game_image" data-preview-target="add_game_preview"></div><div style="grid-column:1/-1" class="preview-box"><img id="add_game_preview" ><div class="preview-hint">選圖後會即時預覽</div></div><div style="grid-column:1/-1"><label>心得（每行一則，可空白）</label><textarea name="notes_text" rows="3" placeholder="例如：互動很強、兩人局節奏快、適合新手入門"></textarea></div>
+  <div style="grid-column:1/-1"><label>圖片</label><input id="add_game_image" type="file" name="image" data-preview-bind="add_game_image" data-preview-target="add_game_preview"></div><div style="grid-column:1/-1" class="preview-box"><img id="add_game_preview" style="display:none"><div class="preview-hint">選圖後會即時預覽</div></div><div style="grid-column:1/-1"><label>心得（每行一則，可空白）</label><textarea name="notes_text" rows="3" placeholder="例如：互動很強、兩人局節奏快、適合新手入門"></textarea></div>
   <div style="grid-column:1/-1" class="btn-row"><button type="submit">➕ 儲存桌遊</button></div>
 </form><datalist id="category_list">{category_list}</datalist></div>
 <div class="card"><div class="section-title"><div class="card-title">桌遊列表</div><div class="small">共 {len(rows)} 款</div></div>
@@ -741,7 +759,7 @@ def members_page(notice: str = "", q_text: str = ""):
     cards, modals = [], []
     for member in rows:
         image_url = web_image_path(member["image_path"])
-        hide_attr = '' if not image_url else ''
+        hide_attr = 'style="display:none"' if not image_url else ''
         summary = get_member_summary(conn, member["name"])
         best_line = f"<div class='pill'>🔥 最強類型：{escape(summary['best_type'])}（{summary['best_rate']}）</div>" if summary["best_type"] else ""
         badges = player_badges(summary)
@@ -753,7 +771,7 @@ def members_page(notice: str = "", q_text: str = ""):
 <form class="form-grid two" method="post" action="/members" enctype="multipart/form-data">
   <div><label>成員姓名</label><input name="name" placeholder="例如 福" required></div>
   <div><label>擅長桌遊類型</label><input name="favorite_types" placeholder="例如 策略 / 派對"></div>
-  <div style="grid-column:1/-1"><label>照片</label><input id="add_member_image" type="file" name="image" data-preview-bind="add_member_image" data-preview-target="add_member_preview"></div><div style="grid-column:1/-1" class="preview-box"><img id="add_member_preview" class="circle" ><div class="preview-hint">選圖後會即時預覽</div></div>
+  <div style="grid-column:1/-1"><label>照片</label><input id="add_member_image" type="file" name="image" data-preview-bind="add_member_image" data-preview-target="add_member_preview"></div><div style="grid-column:1/-1" class="preview-box"><img id="add_member_preview" class="circle" style="display:none"><div class="preview-hint">選圖後會即時預覽</div></div>
   <div style="grid-column:1/-1" class="btn-row"><button type="submit">➕ 儲存成員</button></div>
 </form></div>
 <div class="card"><div class="section-title"><div class="card-title">成員列表</div><div class="small">共 {len(rows)} 位</div></div>
@@ -900,8 +918,8 @@ def records_page(notice: str = "", q_text: str = "", game_filter: str = "", memb
   <div><label>日期</label><input type="date" name="play_date" value="{date.today().isoformat()}" required></div>
   <div><label>桌遊</label><input id="record_game_name" name="game_name" list="games_list" onchange="fillGameType('record_game_name','record_game_type','game_type_map')" required><datalist id="games_list">{game_options}</datalist></div>
   <div><label>桌遊類型</label><input id="record_game_type" name="game_type" list="category_list" placeholder="可自動帶入或自行修改"></div>
-  <div style="grid-column:1/-1"><label>點選玩家</label><div class="choice-wrap">{member_chip_html}</div><input id="record_players" name="players" type="hidden"><div class="preview-hint">可點選加入或取消，新增勝者區會跟著更新</div></div>
-  <div style="grid-column:1/-1"><label>點選勝者</label><div class="choice-wrap">{winner_chip_html}</div><input id="record_winners" name="winners" type="hidden"><div class="preview-hint">只有已選玩家會顯示在這裡</div></div>
+  <div style="grid-column:1/-1"><label>點選玩家</label><div class="choice-wrap">{member_chip_html}</div><input id="record_players" name="players" type="hidden" required><div class="preview-hint">可點選加入或取消，新增勝者區會跟著更新</div></div>
+  <div style="grid-column:1/-1"><label>點選勝者</label><div class="choice-wrap">{winner_chip_html}</div><input id="record_winners" name="winners" type="hidden" required><div class="preview-hint">只有已選玩家會顯示在這裡</div></div>
   <datalist id="category_list">{category_list}</datalist>
   <script id="game_type_map" type="application/json">{escape(json.dumps(gmap, ensure_ascii=False))}</script>
   <div style="grid-column:1/-1" class="btn-row"><button type="submit">➕ 新增紀錄</button></div>
@@ -920,7 +938,7 @@ def records_page(notice: str = "", q_text: str = "", game_filter: str = "", memb
 
 
 @app.post("/records")
-def add_record(play_date: str = Form(...), game_name: str = Form(...), game_type: str = Form(""), players: str = Form(""), winners: str = Form("")):
+def add_record(play_date: str = Form(...), game_name: str = Form(...), game_type: str = Form(""), players: str = Form(...), winners: str = Form(...)):
     conn = get_conn(); cur = conn.cursor()
     game_name = game_name.strip()
     cur.execute(q("SELECT id, category FROM games WHERE name = %s"), (game_name,))
@@ -929,12 +947,6 @@ def add_record(play_date: str = Form(...), game_name: str = Form(...), game_type
     category = game_type.strip() or (game_row["category"] if game_row else "未分類")
     player_list = parse_csv_names(players)
     winner_list = parse_csv_names(winners)
-    if not player_list:
-        conn.close()
-        return redirect("/records?notice=請至少選擇一位玩家")
-    if not winner_list:
-        conn.close()
-        return redirect("/records?notice=請至少選擇一位勝者")
     invalid = [w for w in winner_list if w not in player_list]
     if invalid:
         conn.close()
